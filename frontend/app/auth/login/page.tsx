@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
-import { SparklesIcon } from "@heroicons/react/24/solid";
+import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react";
 
 import { ApiError, login } from "@/lib/api";
 import { ErrorAlert, LoaderSpinner } from "@/components/ui";
@@ -49,7 +48,7 @@ export default function LoginPage() {
             <Lock className="h-6 w-6 text-white" />
           </div>
           <h1 className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            <SparklesIcon className="h-5 w-5 text-brand-500" /> Welcome back
+            <Sparkles className="h-5 w-5 text-brand-500" /> Welcome back
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Please enter your details to sign in</p>
         </div>

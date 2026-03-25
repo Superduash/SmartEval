@@ -1,21 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ReactNode } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { ReactNode, useEffect, useState } from "react";
 import { EmptyState } from "./EmptyState";
 
 type ChartType = "line" | "bar" | "pie";
@@ -33,6 +19,7 @@ interface ChartCardProps {
 }
 
 const PIE_COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+type RechartsModule = typeof import("recharts");
 
 function hasData(data?: DataPoint[]) {
   return Boolean(data && data.length > 0);
@@ -51,8 +38,25 @@ function inferDataKey(data?: DataPoint[], fallback = "value") {
 }
 
 export function ChartCard({ title, subtitle, children, data, type, dataKey = "value", xKey = "name" }: ChartCardProps) {
+  const [recharts, setRecharts] = useState<RechartsModule | null>(null);
   const resolvedXKey = inferXKey(data, xKey);
   const resolvedDataKey = inferDataKey(data, dataKey);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!children && type && hasData(data) && !recharts) {
+      import("recharts").then((mod) => {
+        if (mounted) {
+          setRecharts(mod);
+        }
+      });
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [children, data, type, recharts]);
 
   const renderChart = () => {
     if (children) {
@@ -62,6 +66,25 @@ export function ChartCard({ title, subtitle, children, data, type, dataKey = "va
     if (!type || !hasData(data)) {
       return <EmptyState title="No chart data" description="Data will appear here once records are available." />;
     }
+
+    if (!recharts) {
+      return <div className="h-72 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />;
+    }
+
+    const {
+      Bar,
+      BarChart,
+      CartesianGrid,
+      Cell,
+      Line,
+      LineChart,
+      Pie,
+      PieChart,
+      ResponsiveContainer,
+      Tooltip,
+      XAxis,
+      YAxis,
+    } = recharts;
 
     if (type === "bar") {
       return (

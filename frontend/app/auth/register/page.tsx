@@ -4,9 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Lock, Mail, User, GraduationCap } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, User, GraduationCap, Sparkles } from "lucide-react";
 import { clsx } from "clsx";
-import { SparklesIcon } from "@heroicons/react/24/solid";
 
 import { ApiError, register } from "@/lib/api";
 import { ErrorAlert, LoaderSpinner } from "@/components/ui";
@@ -56,7 +55,7 @@ export default function RegisterPage() {
             <User className="h-6 w-6 text-white" />
           </div>
           <h1 className="flex items-center justify-center gap-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            <SparklesIcon className="h-5 w-5 text-cyan-500" /> Create an account
+            <Sparkles className="h-5 w-5 text-cyan-500" /> Create an account
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Join Smart Evaluation today</p>
         </div>
