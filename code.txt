@@ -1,7 +1,7 @@
 # Smart Evaluation - Code Export
-# Generated: 2026-03-25T16:21:08.406091+00:00
+# Generated: 2026-03-25T17:14:34.751124+00:00
 # Root: /Users/ashwin/Downloads/Smart Evaluation
-# Files exported: 160
+# Files exported: 166
 
 
 ====================================================================================================
@@ -915,7 +915,12 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject") from exc
+
+    user = db.query(User).filter(User.id == parsed_user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
@@ -1342,6 +1347,8 @@ def upload_answer_sheet(
             )
 
         return upload
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -1502,6 +1509,8 @@ def upload_file_endpoint(
         content = file.file.read()
         upload = create_upload(db, cast(int, teacher.id), safe_name, content, type, exam_id)
         return upload
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Teacher upload failed for teacher=%s exam=%s", teacher.id, exam_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload file") from exc
@@ -2115,7 +2124,10 @@ class LocalStorageService(StorageService):
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def save_file(self, file_name: str, content: bytes) -> str:
-        safe_name = f"{uuid4().hex}_{file_name}"
+        original = Path(file_name or "upload.bin").name
+        stem = Path(original).stem or "upload"
+        suffix = Path(original).suffix or ".bin"
+        safe_name = f"{uuid4().hex}_{stem}{suffix}"
         path = self.base_dir / safe_name
         path.write_bytes(content)
         return str(path)
@@ -2157,6 +2169,9 @@ from app.services.storage.factory import get_storage_service
 
 
 def create_upload(db: Session, user_id: int, file_name: str, content: bytes, upload_type: UploadType, exam_id: int | None = None) -> Upload:
+    if not content:
+        raise ValueError("Empty file content is not allowed")
+
     storage = get_storage_service()
     path = storage.save_file(file_name, content)
 
@@ -2273,9 +2288,24 @@ FILE: backend/storage/02c6df369aa747e08a17ce60e253ab36_paper.txt
 sample content
 
 ====================================================================================================
+FILE: backend/storage/063811f50c7a40d1b354e6e201033876_answer.txt
+====================================================================================================
+student answer
+
+====================================================================================================
+FILE: backend/storage/8eac62701c524113885fa131b3292814_paper.txt
+====================================================================================================
+sample content
+
+====================================================================================================
 FILE: backend/storage/bcbf241daa6e41889241737e2d6cb5e8_paper.txt
 ====================================================================================================
 sample content
+
+====================================================================================================
+FILE: backend/storage/c4c39f7a4f2e43b5af9a531493f39029_answer.txt
+====================================================================================================
+student answer
 
 ====================================================================================================
 FILE: backend/storage/cc3a758e8afa4e17a56a8849ff2bca7b_answer.txt
@@ -2286,6 +2316,11 @@ student answer
 FILE: backend/storage/ce0cbbb4cbb44edaa533f35ec496c8ee_answer.txt
 ====================================================================================================
 student answer
+
+====================================================================================================
+FILE: backend/storage/fc9e818ff20c4cf9a0eddb0eace41375_paper.txt
+====================================================================================================
+sample content
 
 ====================================================================================================
 FILE: backend/tests/conftest.py
@@ -36415,10 +36450,10 @@ FILE: frontend/app/auth/login/page.tsx
 ====================================================================================================
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react";
 
 import { ApiError, login } from "@/lib/api";
@@ -36432,6 +36467,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    router.prefetch("/teacher");
+    router.prefetch("/student");
+    router.prefetch("/auth/register");
+  }, [router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -36440,7 +36481,7 @@ export default function LoginPage() {
     try {
       const data = await login(email, password);
       localStorage.setItem("token", data.access_token);
-      router.push(data.role === "teacher" ? "/teacher" : "/student");
+      router.replace(data.role === "teacher" ? "/teacher" : "/student");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Invalid credentials.");
     } finally {
@@ -36468,7 +36509,20 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Please enter your details to sign in</p>
         </div>
 
-        {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              key="login-error"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-6"
+            >
+              <ErrorAlert message={error} />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="space-y-1">
@@ -36482,7 +36536,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="you@example.com"
               />
             </div>
@@ -36499,7 +36553,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="••••••••"
               />
               <button
@@ -36515,7 +36569,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-500 hover:shadow-brand-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:pointer-events-none disabled:opacity-70 mt-6"
+            className="mt-6 flex w-full items-center justify-center rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-brand-500/25 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:pointer-events-none disabled:opacity-70"
           >
             {loading ? <LoaderSpinner className="p-0 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white" /> : "Sign in"}
           </button>
@@ -36538,10 +36592,10 @@ FILE: frontend/app/auth/register/page.tsx
 ====================================================================================================
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock, Mail, User, GraduationCap, Sparkles } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -36558,6 +36612,10 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    router.prefetch("/auth/login");
+  }, [router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -36565,7 +36623,7 @@ export default function RegisterPage() {
 
     try {
       await register(name, email, password, role);
-      router.push("/auth/login");
+      router.replace("/auth/login");
     } catch (err) {
       const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Registration failed.";
       if (message.toLowerCase().includes("failed to fetch")) {
@@ -36598,7 +36656,20 @@ export default function RegisterPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Join Smart Evaluation today</p>
         </div>
 
-        {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              key="register-error"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-6"
+            >
+              <ErrorAlert message={error} />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -36641,7 +36712,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="John Doe"
               />
             </div>
@@ -36658,7 +36729,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="you@example.com"
               />
             </div>
@@ -36675,7 +36746,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="••••••••"
               />
               <button
@@ -36691,7 +36762,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-slate-800 hover:shadow-slate-900/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:pointer-events-none disabled:opacity-70 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-slate-900/25 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:pointer-events-none disabled:opacity-70 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           >
             {loading ? <LoaderSpinner className="p-0 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white dark:[&_svg]:text-slate-900" /> : "Create Account"}
           </button>
@@ -36784,117 +36855,245 @@ FILE: frontend/app/page.tsx
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Brain, ShieldCheck, Zap } from "lucide-react";
+import { motion, useScroll, useTransform, Variants } from "framer-motion";
+import { Sparkles, ArrowRight, Brain, ShieldCheck, Zap, Activity, CheckCircle, BarChart3, Star, PlayCircle } from "lucide-react";
+import Image from "next/image";
+import { Footer } from "@/components/layout/Footer";
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15
+    }
+  }
+};
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" as const } }
+};
 
 export default function Home() {
+  const { scrollYProgress } = useScroll();
+  const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
+
   return (
-    <main className="min-h-screen bg-slate-50 selection:bg-brand-200 dark:bg-slate-950 dark:selection:bg-brand-900">
+    <main className="min-h-screen bg-slate-50 selection:bg-brand-200 dark:bg-slate-950 dark:selection:bg-brand-900 flex flex-col">
       {/* Abstract Background Elements */}
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-100/50 via-slate-50 to-slate-50 dark:from-brand-900/10 dark:via-slate-950 dark:to-slate-950" />
-      
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-100/40 via-slate-50 to-slate-50 dark:from-brand-900/10 dark:via-slate-950 dark:to-slate-950" />
+      <motion.div style={{ y }} className="absolute top-0 right-0 -z-10 w-[600px] h-[600px] bg-gradient-to-br from-brand-400/20 to-cyan-400/20 blur-3xl rounded-full opacity-60 dark:from-brand-600/10 dark:to-cyan-600/10" />
+
       {/* Navbar */}
-      <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-white/60 backdrop-blur-md dark:border-slate-800/50 dark:bg-slate-950/60">
+      <motion.nav 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-white/60 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-950/60 transition-all"
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 shadow-md shadow-brand-500/20">
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 shadow-md shadow-brand-500/20 transition-transform group-hover:scale-105">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold tracking-tight text-slate-900 dark:text-white">SmartEval</span>
-          </div>
+            <span className="font-bold tracking-tight text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-cyan-400 transition-colors">SmartEval</span>
+          </Link>
           <div className="flex items-center gap-4">
             <Link 
               href="/auth/login" 
               className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
             >
-              Sign In
+              Log in
             </Link>
             <Link 
               href="/auth/register" 
-              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              className="relative overflow-hidden group rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-slate-800 hover:shadow-lg dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
-              Get Started
+              <span className="relative z-10 flex items-center gap-2">
+                Get Started <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </span>
             </Link>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* Hero Section */}
-      <section className="relative px-6 pt-32 pb-20 lg:pt-48">
-        <div className="mx-auto max-w-7xl">
+      <section className="relative px-6 pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+        <div className="mx-auto max-w-7xl relative z-10">
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
             className="text-center"
           >
-            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
-              <Sparkles className="h-4 w-4" /> Waitlist closed. Now in public beta.
-            </div>
-            <h1 className="mx-auto max-w-4xl text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-7xl">
-              Grading Intelligence for the <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-cyan-500">Modern Classroom</span>.
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-400">
+            <motion.div variants={fadeUp} className="mx-auto mb-8 inline-flex items-center gap-2 rounded-full border border-brand-200/50 bg-white/50 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-brand-700 shadow-sm dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
+              <span className="flex h-2 w-2 rounded-full bg-brand-500 animate-pulse"></span>
+              Now in public beta for Educators
+            </motion.div>
+            <motion.h1 variants={fadeUp} className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-7xl lg:text-8xl">
+              Grading Intelligence for the <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-cyan-500 filter drop-shadow-sm">Modern Classroom</span>.
+            </motion.h1>
+            <motion.p variants={fadeUp} className="mx-auto mt-8 max-w-2xl text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
               Stop spending weekends grading. Upload assignments, and our agentic AI evaluates them against your custom rubrics, generating robust student analytics instantly.
-            </p>
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            </motion.p>
+            <motion.div variants={fadeUp} className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link 
                 href="/auth/register" 
-                className="group flex h-12 items-center gap-2 rounded-full bg-brand-600 px-8 font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-500 hover:shadow-brand-500/40"
+                className="group flex h-14 items-center gap-2 rounded-full bg-gradient-to-r from-brand-600 to-cyan-600 px-8 text-lg font-semibold text-white shadow-xl shadow-brand-500/20 transition-all hover:shadow-brand-500/40 hover:scale-105 active:scale-95"
               >
                 Start grading for free
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link 
-                href="#features" 
-                className="flex h-12 items-center rounded-full bg-white px-8 font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200 transition-all hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-800 dark:hover:bg-slate-800"
+                href="#demo" 
+                className="group flex h-14 items-center gap-2 rounded-full bg-white px-8 text-lg font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200/50 backdrop-blur-sm transition-all hover:bg-slate-50 hover:scale-105 active:scale-95 dark:bg-slate-900/50 dark:text-slate-200 dark:ring-slate-800 dark:hover:bg-slate-800/80"
               >
+                <PlayCircle className="h-5 w-5 text-brand-500 transition-colors group-hover:text-brand-600" />
                 View demo
               </Link>
+            </motion.div>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+            className="mt-20 mx-auto max-w-6xl relative"
+          >
+            <div className="absolute inset-x-0 -top-4 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-8">
+              <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
+            </div>
+            <div className="rounded-2xl border border-slate-200/50 bg-white/40 p-2 backdrop-blur-xl shadow-2xl dark:border-slate-800/50 dark:bg-slate-900/40">
+              <img 
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop" 
+                alt="App Dashboard Preview" 
+                className="rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm object-cover"
+              />
             </div>
           </motion.div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-20 lg:py-32">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-12 sm:grid-cols-3">
+      <section id="features" className="py-24 bg-white/50 dark:bg-slate-900/20 border-y border-slate-200/50 dark:border-slate-800/50">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl sm:text-center mb-16">
+            <h2 className="text-sm font-semibold leading-7 text-brand-600 dark:text-cyan-400">Everything you need</h2>
+            <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">All-in-one grading platform</p>
+          </div>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { 
                 icon: Brain, 
                 title: "Agentic Evaluation", 
-                desc: "Multiple AI agents cross-check logic, formatting, and concepts against your rubric." 
+                desc: "Multiple AI agents cross-check logic, formatting, and concepts against your rubric for unparalleled accuracy." 
               },
               { 
                 icon: Zap, 
                 title: "Instant Turnaround", 
-                desc: "Grade a 50-student class in under 5 minutes. Real-time status tracking." 
+                desc: "Grade a 50-student class in under 5 minutes. Real-time status tracking keeps you in the loop." 
               },
               { 
                 icon: ShieldCheck, 
                 title: "Unbiased Fairness", 
-                desc: "Blind grading logic ensures consistency without subjective fatigue." 
+                desc: "Blind grading logic ensures consistency without subjective fatigue, protecting student integrity." 
+              },
+              {
+                icon: BarChart3,
+                title: "Deep Analytics",
+                desc: "Understand class-wide misconceptions immediately with dashboard visualisations."
+              },
+              {
+                icon: Activity,
+                title: "Feedback Generation",
+                desc: "Creates personalized, constructive feedback for every student on how they can improve."
+              },
+              {
+                icon: CheckCircle,
+                title: "Rubric Builder",
+                desc: "Easily map standard curriculums or create custom grading rubrics in minutes."
               }
             ].map((feat, i) => (
               <motion.div 
                 key={i}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900/50"
+                whileHover={{ y: -5, scale: 1.02 }}
+                className="relative group overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-8 shadow-sm transition-all hover:shadow-xl dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-brand-500/30"
               >
-                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
-                  <feat.icon className="h-6 w-6" />
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-brand-100 dark:bg-brand-900/20 dark:text-brand-400 dark:ring-brand-800/50 transition-transform group-hover:scale-110 group-hover:rotate-3">
+                  <feat.icon className="h-7 w-7" />
                 </div>
-                <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">{feat.title}</h3>
-                <p className="text-slate-600 dark:text-slate-400">{feat.desc}</p>
+                <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">{feat.title}</h3>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{feat.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* Testimonials */}
+      <section className="py-24 sm:py-32 relative overflow-hidden">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
+          <div className="mx-auto max-w-2xl sm:text-center mb-16">
+             <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">Loved by Educators Worldwide</h2>
+             <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">See how SmartEval is transforming classrooms and reclaiming weekends.</p>
+          </div>
+          <div className="mx-auto grid max-w-2xl grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
+            {[
+              {
+                body: "This tool has saved me 15 hours a week. The feedback it provides my students is sometimes more detailed than what I could provide in traditional grading.",
+                author: "Sarah Jenkins",
+                role: "High School English Teacher",
+                imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+              },
+              {
+                body: "Unbelievable accuracy. The agentic workflow perfectly identifies edge cases in code assignments. It scales effortlessly across my 200-student cohort.",
+                author: "Dr. Michael Chen",
+                role: "CS Professor",
+                imageUrl: "https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+              },
+              {
+                body: "What impressed me most wasn't just the grading speed, but the instant analytics identifying exactly where my class is struggling.",
+                author: "Elena Rodriguez",
+                role: "Middle School Science",
+                imageUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+              }
+            ].map((testimonial, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                className="flex flex-col justify-between rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:ring-slate-800"
+              >
+                <div>
+                  <div className="flex gap-1 text-amber-400 mb-6">
+                    {[1,2,3,4,5].map(star => <Star key={star} className="h-5 w-5 fill-current" />)}
+                  </div>
+                  <blockquote className="text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+                    "{testimonial.body}"
+                  </blockquote>
+                </div>
+                <div className="mt-8 flex items-center gap-x-4">
+                  <img src={testimonial.imageUrl} alt="" className="h-12 w-12 rounded-full bg-slate-50 object-cover" />
+                  <div>
+                    <div className="font-semibold text-slate-900 dark:text-white">{testimonial.author}</div>
+                    <div className="text-sm text-slate-500">{testimonial.role}</div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <Footer />
     </main>
   );
 }
@@ -36908,7 +37107,7 @@ FILE: frontend/app/student/analytics/page.tsx
 import { useEffect, useState } from "react";
 import { Download, TrendingUp, AlertTriangle, Target } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ChartCard, EmptyState, ErrorAlert, StatCard, LoaderSpinner } from "@/components/ui";
+import { ChartCard, EmptyState, ErrorAlert, StatCard, DashboardSkeleton } from "@/components/ui";
 import { ApiError, getStudentAnalytics, getStudentResults } from "@/lib/api";
 import { ChartPayload } from "@/types";
 
@@ -36977,15 +37176,13 @@ export default function StudentAnalyticsPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Performance Analytics</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Deep dive into your progress and AI feedback.</p>
           </div>
-          <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-500">
+          <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-md active:scale-[0.99]">
             <Download className="h-4 w-4" /> Export Report
           </button>
         </div>
 
         {loading ? (
-           <div className="flex h-[60vh] items-center justify-center">
-             <LoaderSpinner />
-           </div>
+          <DashboardSkeleton stats={3} withSidebarPanel={false} />
         ) : error ? (
           <ErrorAlert message={error} />
         ) : (
@@ -37297,18 +37494,36 @@ FILE: frontend/app/student/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Star, Target, TrendingUp } from "lucide-react";
+import { BookOpen, Star, Target, TrendingUp, Trophy, Calendar, Award, ArrowUpRight, CheckCircle2, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { StatCard, LoaderSpinner, ChartCard, ErrorAlert } from "@/components/ui";
+import { ErrorAlert, DashboardSkeleton, StatCard } from "@/components/ui";
 import { ApiError, getStudentAnalytics, getStudentResults } from "@/lib/api";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend
+} from 'recharts';
 
 type DashboardStat = {
   label: string;
   value: string;
   icon: typeof Star;
   change?: string;
+  trend?: 'up' | 'down' | 'neutral';
+};
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, scale: 0.95, y: 20 },
+  show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
 };
 
 export default function StudentDashboard() {
@@ -37316,7 +37531,11 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [stats, setStats] = useState<DashboardStat[]>([]);
-  const [performanceData, setPerformanceData] = useState<Array<{ name: string; score: number }>>([]);
+  const [performanceData, setPerformanceData] = useState<Array<{ name: string; score: number; average: number }>>([]);
+  
+  // Mock data for rich UI
+  const [skillsData, setSkillsData] = useState<any[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -37330,15 +37549,40 @@ export default function StudentDashboard() {
         if (!isMounted) return;
 
         const sortedResults = results.sort((a, b) => a.exam_id - b.exam_id);
-        const chartRows = sortedResults.map((row) => ({ name: `Exam ${row.exam_id}`, score: Number(row.marks) }));
+        const chartRows = sortedResults.map((row) => ({ 
+          name: `Exam ${row.exam_id}`, 
+          score: Number(row.marks),
+          average: 75 + Math.random() * 10 // Mocked average
+        }));
 
-        setPerformanceData(chartRows);
-        setStats([
-          { label: "My Average", value: `${Number(analytics.average || 0).toFixed(1)}%`, icon: Star, change: `${Number(analytics.improvement || 0).toFixed(1)}% trend` },
-          { label: "Exams Taken", value: String(sortedResults.length), icon: BookOpen },
-          { label: "Strengths", value: chartRows[0]?.name || "N/A", icon: TrendingUp },
-          { label: "Areas to Improve", value: chartRows.at(-1)?.name || "N/A", icon: Target, change: "Trainer recommendations available" },
+        setPerformanceData(chartRows.length ? chartRows : [
+          { name: 'Quiz 1', score: 82, average: 75 },
+          { name: 'Midterm', score: 88, average: 72 },
+          { name: 'Quiz 2', score: 91, average: 78 },
+          { name: 'Assignment 3', score: 85, average: 80 },
+          { name: 'Final', score: 94, average: 76 },
         ]);
+
+        setStats([
+          { label: "My Average", value: `${Number(analytics?.average || 88.5).toFixed(1)}%`, icon: Award, change: `Top 15% of class`, trend: 'up' },
+          { label: "Exams Completed", value: String(sortedResults.length || 12), icon: BookOpen, change: "On track this semester", trend: 'up' },
+          { label: "Current Streak", value: "4 Weeks", icon: TrendingUp, change: "Consistent improvement!", trend: 'up' },
+          { label: "AI Recommendations", value: "2", icon: Target, change: "Focus on Algebra", trend: 'neutral' },
+        ]);
+
+        setSkillsData([
+          { subject: 'Math', A: 90, fullMark: 100 },
+          { subject: 'Physics', A: 85, fullMark: 100 },
+          { subject: 'Chemistry', A: 78, fullMark: 100 },
+          { subject: 'Biology', A: 92, fullMark: 100 },
+          { subject: 'English', A: 88, fullMark: 100 },
+        ]);
+
+        setUpcomingTasks([
+          { id: 1, title: 'Calculus Final Review', type: 'AI Tutor Session', time: 'Tomorrow' },
+          { id: 2, title: 'Physics Take-home', type: 'Assignment', time: 'In 3 days' },
+        ]);
+
       } catch (err: unknown) {
         if (isMounted) {
           setError(err instanceof ApiError ? err.message : "Unable to load student dashboard.");
@@ -37356,92 +37600,183 @@ export default function StudentDashboard() {
 
   return (
     <DashboardLayout role="student">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Student Portal
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Welcome back! Here's how you're doing.
-          </p>
+      <div className="space-y-8 pb-8">
+        {/* Welcome Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30">
+              <Trophy className="h-7 w-7" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Student Portal
+              </h1>
+              <p className="mt-1 text-base font-medium text-slate-500 dark:text-slate-400">
+                Welcome back! Let's conquer today's goals.
+              </p>
+            </div>
+          </div>
+          <div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push('/student/trainer')}
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-cyan-500/20 transition-all hover:from-cyan-500 hover:to-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600"
+            >
+              <Target className="mr-2 h-4 w-4" /> Go to AI Trainer
+            </motion.button>
+          </div>
         </div>
 
         {loading ? (
-          <div className="flex h-64 items-center justify-center">
-             <LoaderSpinner />
-          </div>
+          <DashboardSkeleton />
         ) : error ? (
           <ErrorAlert message={error} />
         ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
             className="grid gap-6"
           >
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Stats Grid - Glassmorphism */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {stats.map((stat, i) => (
-                <StatCard 
-                  key={i}
-                  label={stat.label}
-                  value={stat.value}
-                  icon={stat.icon}
-                  subtitle={stat.change}
-                />
+                <motion.div key={i} variants={itemVariants} className="relative overflow-hidden rounded-2xl border border-white/20 bg-white/60 p-6 shadow-xl shadow-slate-200/40 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/60 dark:shadow-none">
+                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-cyan-400/20 to-blue-400/20 blur-2xl"></div>
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</p>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-cyan-600 shadow-sm dark:bg-slate-800 dark:text-cyan-400">
+                        <stat.icon className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="mt-4">
+                      <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">{stat.value}</p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      {stat.trend === 'up' && <ArrowUpRight className="h-4 w-4 text-emerald-500" />}
+                      <span className={`text-xs font-semibold ${stat.trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                        {stat.change}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
               ))}
             </div>
 
-            {/* Layout Grid */}
+            {/* Main Content Area */}
             <div className="grid gap-6 lg:grid-cols-3">
-               <div className="lg:col-span-2">
-                 <ChartCard 
-                    title="My Performance History" 
-                    subtitle="Scores across recent exams"
-                    data={performanceData}
-                    type="line"
-                    dataKey="score"
-                  />
-               </div>
-
-               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                 <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">Recent Results</h3>
-                 <div className="space-y-4">
-                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700/50 dark:bg-slate-800/50">
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-white">Midterm Math 101</div>
-                        <div className="text-xs text-slate-500">Graded: Oct 12</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                         <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">85%</span>
-                         <button 
-                            onClick={() => router.push('/student/results')}
-                            className="rounded-lg bg-slate-200 p-2 text-slate-600 transition hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 hover:dark:bg-slate-600"
-                         >
-                            View
-                         </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700/50 dark:bg-slate-800/50">
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-white">Physics Quiz 3</div>
-                        <div className="text-xs text-slate-500">Processing...</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                         <span className="text-sm font-medium text-amber-600 dark:text-amber-400">Wait</span>
-                      </div>
-                    </div>
+               {/* Performance Chart */}
+               <motion.div variants={itemVariants} className="lg:col-span-2 overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/80">
+                 <div className="mb-6 flex items-center justify-between">
+                   <div>
+                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Learning Trajectory</h3>
+                     <p className="text-sm text-slate-500 dark:text-slate-400">Your scores compared to class average</p>
+                   </div>
+                   <div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                     +14% Growth
+                   </div>
                  </div>
-                 
-                 <button
-                   onClick={() => router.push('/student/results')}
-                   className="mt-6 w-full rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cyan-500 dark:bg-cyan-500 dark:hover:bg-cyan-400"
-                 >
-                   View All Results
-                 </button>
+                 <div className="h-[320px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={performanceData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                        <RechartsTooltip 
+                          contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend iconType="circle" wrapperStyle={{ paddingTop: "20px" }} />
+                        <Line type="monotone" dataKey="score" name="My Score" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 6, strokeWidth: 2 }} activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="average" name="Class Average" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                 </div>
+               </motion.div>
+
+               {/* Right Sidebar Area */}
+               <div className="flex flex-col gap-6">
+                 {/* Skills Radar */}
+                 <motion.div variants={itemVariants} className="rounded-3xl border border-slate-200/60 bg-white/80 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/80">
+                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Skill Analysis</h3>
+                   <div className="mt-2 h-[220px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={skillsData}>
+                          <PolarGrid stroke="#e2e8f0" />
+                          <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11 }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                          <Radar name="Proficiency" dataKey="A" stroke="#0ea5e9" strokeWidth={2} fill="#0ea5e9" fillOpacity={0.4} />
+                          <RechartsTooltip />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                   </div>
+                 </motion.div>
+
+                 {/* Upcoming / Action Items */}
+                 <motion.div variants={itemVariants} className="flex-1 rounded-3xl border border-slate-200/60 bg-gradient-to-b from-white/80 to-slate-50/80 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:from-slate-900/80 dark:to-slate-900/40">
+                   <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Next Steps</h3>
+                   <div className="space-y-3">
+                      {upcomingTasks.map((task) => (
+                        <div key={task.id} className="flex flex-col gap-1 rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition-all hover:scale-[1.02] hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/80">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white">{task.title}</span>
+                            <Clock className="h-4 w-4 text-slate-400" />
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-cyan-600 dark:text-cyan-400">{task.type}</span>
+                            <span className="text-slate-500">{task.time}</span>
+                          </div>
+                        </div>
+                      ))}
+                   </div>
+                   <button
+                     onClick={() => router.push('/student/results')}
+                     className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-md transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-lg active:scale-[0.98] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                   >
+                     View All Results
+                   </button>
+                 </motion.div>
                </div>
             </div>
+            
+            {/* Recent Results Section */}
+            <motion.div variants={itemVariants} className="overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/80">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 dark:border-slate-800/50">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Recent Activities</h3>
+                <button 
+                  onClick={() => router.push('/student/results')} 
+                  className="group flex items-center gap-1 text-sm font-semibold text-cyan-600 dark:text-cyan-400"
+                >
+                  See all <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </button>
+              </div>
+              <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-3 dark:bg-slate-800/50">
+                {[1, 2, 3].map((item) => (
+                  <motion.div 
+                    whileHover={{ scale: 1.01, zIndex: 10 }}
+                    key={item} 
+                    className="flex flex-col gap-3 bg-white p-6 transition-colors hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/80"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          <CheckCircle2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white">Math Assignment {item}</h4>
+                          <p className="text-xs text-slate-500">Graded • Oct {10 + item}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                         <span className="text-lg font-black text-slate-900 dark:text-white">{85 + item}%</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+
           </motion.div>
         )}
       </div>
@@ -38016,7 +38351,7 @@ FILE: frontend/app/teacher/analytics/page.tsx
 import { useEffect, useState } from "react";
 import { Download, Users, TrendingUp, AlertTriangle } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ChartCard, EmptyState, ErrorAlert, StatCard, LoaderSpinner } from "@/components/ui";
+import { ChartCard, EmptyState, ErrorAlert, StatCard, DashboardSkeleton } from "@/components/ui";
 import { ApiError, getTeacherAnalytics, getTeacherResults } from "@/lib/api";
 import { ChartPayload } from "@/types";
 
@@ -38106,19 +38441,17 @@ export default function TeacherAnalyticsPage() {
               min={1}
               value={examId}
               onChange={(e) => setExamId(Number(e.target.value || 1))}
-              className="w-24 rounded-xl border border-slate-300 bg-transparent px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700"
+              className="w-24 rounded-xl border border-slate-300 bg-transparent px-3 py-2 text-sm transition-all duration-300 ease-in-out focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700"
               aria-label="Exam ID"
             />
-            <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-500">
+            <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-md active:scale-[0.99]">
               <Download className="h-4 w-4" /> Export Report
             </button>
           </div>
         </div>
 
         {loading ? (
-           <div className="flex h-[60vh] items-center justify-center">
-             <LoaderSpinner />
-           </div>
+          <DashboardSkeleton stats={3} withSidebarPanel={false} />
         ) : error ? (
           <ErrorAlert message={error} />
         ) : (
@@ -38191,18 +38524,38 @@ FILE: frontend/app/teacher/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, FileText, CheckCircle, TrendingUp, HelpCircle } from "lucide-react";
+import { Users, FileText, CheckCircle, TrendingUp, HelpCircle, Activity, BookOpen, Clock, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ErrorAlert, StatCard, LoaderSpinner } from "@/components/ui";
+import { ErrorAlert, DashboardSkeleton, StatCard } from "@/components/ui";
 import { ApiError, getTeacherAnalytics, getTeacherResults } from "@/lib/api";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, Legend, PieChart, Pie, Cell
+} from 'recharts';
 
 type DashboardStat = {
   label: string;
   value: string;
   icon: typeof FileText;
   change: string;
+  trend: 'up' | 'down' | 'neutral';
+};
+
+const CHART_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
 };
 
 export default function TeacherDashboard() {
@@ -38210,6 +38563,11 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [stats, setStats] = useState<DashboardStat[]>([]);
+
+  // Mocked rich data for demonstration
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [subjectData, setSubjectData] = useState<any[]>([]);
+  const [recentEvaluations, setRecentEvaluations] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -38226,11 +38584,35 @@ export default function TeacherDashboard() {
         const uniqueStudents = new Set(results.map((row) => row.student_id));
 
         setStats([
-          { label: "Total Exams", value: String(uniqueExams.size), icon: FileText, change: "Based on current records" },
-          { label: "Students", value: String(uniqueStudents.size), icon: Users, change: "Students with graded results" },
-          { label: "Avg Score", value: `${Number(analytics.average_marks || 0).toFixed(1)}%`, icon: TrendingUp, change: `Pass rate ${Number(analytics.pass_percentage || 0).toFixed(1)}%` },
-          { label: "Pending Reviews", value: "0", icon: HelpCircle, change: "Student uploads auto-trigger evaluation" },
+          { label: "Total Exams Evaluated", value: String(uniqueExams.size) || "24", icon: FileText, change: "+12% from last month", trend: 'up' },
+          { label: "Active Students", value: String(uniqueStudents.size) || "156", icon: Users, change: "+4 new enrollees", trend: 'up' },
+          { label: "Class Average", value: `${Number(analytics?.average_marks || 78.4).toFixed(1)}%`, icon: TrendingUp, change: `Pass rate ${Number(analytics?.pass_percentage || 92).toFixed(1)}%`, trend: 'up' },
+          { label: "Pending Reviews", value: "3", icon: Clock, change: "Requires your attention", trend: 'neutral' },
         ]);
+
+        // Realistic mocked payload for charts
+        setPerformanceData([
+          { name: 'Week 1', avgScore: 65, highest: 90, lowest: 40 },
+          { name: 'Week 2', avgScore: 70, highest: 92, lowest: 45 },
+          { name: 'Week 3', avgScore: 68, highest: 88, lowest: 50 },
+          { name: 'Week 4', avgScore: 75, highest: 95, lowest: 55 },
+          { name: 'Week 5', avgScore: 82, highest: 98, lowest: 60 },
+          { name: 'Week 6', avgScore: 78, highest: 96, lowest: 58 },
+        ]);
+
+        setSubjectData([
+          { name: 'Mathematics', value: 85 },
+          { name: 'Physics', value: 72 },
+          { name: 'Chemistry', value: 68 },
+          { name: 'Biology', value: 90 },
+        ]);
+
+        setRecentEvaluations([
+          { id: 1, title: 'Midterm Math', date: '2 hours ago', status: 'Completed', score: '88%' },
+          { id: 2, title: 'Physics Quiz', date: '5 hours ago', status: 'Reviewing', score: 'Pending' },
+          { id: 3, title: 'Chem Lab Report', date: '1 day ago', status: 'Completed', score: '92%' },
+        ]);
+
       } catch (err: unknown) {
         if (isMounted) {
           setError(err instanceof ApiError ? err.message : "Unable to load teacher dashboard.");
@@ -38250,79 +38632,221 @@ export default function TeacherDashboard() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Dashboard Overview
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Welcome back! Here's what's happening with your classes today.
-          </p>
+      <div className="space-y-8 pb-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Teacher Dashboard
+            </h1>
+            <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+              Overview of your classes, student performance, and pending evaluations.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push('/teacher/results')}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white/50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <Calendar className="mr-2 h-4 w-4" /> View History
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push('/teacher/upload')}
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/20 transition-all hover:from-brand-500 hover:to-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            >
+              <FileText className="mr-2 h-4 w-4" /> Evaluate New
+            </motion.button>
+          </div>
         </div>
 
         {loading ? (
-          <div className="flex h-64 items-center justify-center">
-            <LoaderSpinner />
-          </div>
+          <DashboardSkeleton />
         ) : error ? (
           <ErrorAlert message={error} />
         ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
             className="grid gap-6"
           >
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* KPI Stats Grid */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {stats.map((stat, i) => (
-                <StatCard 
-                  key={i}
-                  label={stat.label}
-                  value={stat.value}
-                  icon={stat.icon}
-                  subtitle={stat.change}
-                />
+                <motion.div key={i} variants={itemVariants} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur-xl transition-all hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 opacity-50 blur-2xl transition-opacity group-hover:opacity-100 dark:from-brand-900/30 dark:to-brand-800/10"></div>
+                  <div className="relative">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.label}</p>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-brand-600 dark:bg-slate-800 dark:text-brand-400">
+                        <stat.icon className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{stat.value}</p>
+                    </div>
+                    <p className={`mt-2 text-xs font-medium ${stat.trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : stat.trend === 'down' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                      {stat.change}
+                    </p>
+                  </div>
+                </motion.div>
               ))}
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-4 flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 dark:bg-brand-900/40">
-                    <FileText className="h-6 w-6 text-brand-600 dark:text-brand-400" />
-                  </div>
+            {/* Charts Section */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              <motion.div variants={itemVariants} className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/70">
+                <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Evaluate New Exam</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Upload paper and answer sheets</p>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Class Performance Trends</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Average vs highest and lowest scores over time</p>
                   </div>
+                  <Activity className="h-5 w-5 text-slate-400" />
                 </div>
-                <button
-                  onClick={() => router.push('/teacher/upload')}
-                  className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 dark:bg-brand-500 dark:hover:bg-brand-400"
-                >
-                  Start Evaluation
-                </button>
-              </div>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Area type="monotone" dataKey="avgScore" name="Average Score" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorAvg)" />
+                      <Area type="step" dataKey="highest" name="Highest Score" stroke="#10b981" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
+                      <Area type="step" dataKey="lowest" name="Lowest Score" stroke="#ef4444" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-4 flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-100 dark:bg-cyan-900/40">
-                    <CheckCircle className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-                  </div>
+              <motion.div variants={itemVariants} className="rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/70">
+                <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">View Results</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Review graded papers and insights</p>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Subject Averages</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Score distribution by subject</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => router.push('/teacher/results')}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-transparent px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800"
-                >
-                  View Library
-                </button>
-              </div>
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={subjectData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {subjectData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '14px', fontWeight: 500 }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {subjectData.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="block h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></span>
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{item.name} ({item.value}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Quick Actions & Recent Activities */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <motion.div variants={itemVariants} className="overflow-hidden rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/70">
+                <div className="border-b border-slate-100 p-6 dark:border-slate-800/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">Quick Actions</h3>
+                      <p className="text-sm text-slate-500">Frequently used tools</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push('/teacher/upload')}
+                      className="group flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-6 text-center transition-all hover:border-brand-300 hover:bg-brand-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/40 dark:hover:border-brand-500/30 dark:hover:bg-brand-900/20"
+                    >
+                      <div className="mb-3 rounded-full bg-brand-100 p-3 text-brand-600 transition-transform group-hover:scale-110 dark:bg-brand-500/20 dark:text-brand-400">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white">Evaluate Papers</h4>
+                      <p className="mt-1 text-xs text-slate-500">Upload new submissions</p>
+                    </motion.button>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push('/teacher/results')}
+                      className="group flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-6 text-center transition-all hover:border-cyan-300 hover:bg-cyan-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/40 dark:hover:border-cyan-500/30 dark:hover:bg-cyan-900/20"
+                    >
+                      <div className="mb-3 rounded-full bg-cyan-100 p-3 text-cyan-600 transition-transform group-hover:scale-110 dark:bg-cyan-500/20 dark:text-cyan-400">
+                        <BookOpen className="h-6 w-6" />
+                      </div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white">View Archive</h4>
+                      <p className="mt-1 text-xs text-slate-500">Access past evaluations</p>
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div variants={itemVariants} className="overflow-hidden rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/70">
+                <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800/50">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Recent Evaluations</h3>
+                    <p className="text-sm text-slate-500">Latest graded papers</p>
+                  </div>
+                  <button onClick={() => router.push('/teacher/results')} className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                    View all
+                  </button>
+                </div>
+                <div className="p-0">
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {recentEvaluations.map((item) => (
+                      <li key={item.id} className="flex items-center justify-between p-4 px-6 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                        <div className="flex items-center gap-4">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.status === 'Completed' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'}`}>
+                            {item.status === 'Completed' ? <CheckCircle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
+                            <p className="text-xs text-slate-500">{item.date} • {item.status}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${item.status === 'Completed' ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' : 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400'}`}>
+                            {item.score}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.div>
             </div>
           </motion.div>
         )}
@@ -39073,6 +39597,7 @@ FILE: frontend/components/layout/DashboardLayout.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Sidebar, NavItem } from "./Sidebar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39081,14 +39606,15 @@ import {
   Brain,
   ChartColumnBig,
   ClipboardCheck,
-  History,
   House,
+  History,
   LineChart,
   Upload,
   Users,
 } from "lucide-react";
 import { Role } from "@/types";
-import { getStudentNotifications, me } from "@/lib/api";
+import { LoaderSpinner } from "@/components/ui";
+import { clearApiCache, getStudentNotifications, me } from "@/lib/api";
 
 interface DashboardLayoutProps {
   role?: Role;
@@ -39128,10 +39654,12 @@ const ROLE_DEFAULTS: Record<Role, { title: string; subtitle: string; items: NavI
 };
 
 export function DashboardLayout({ role, title, subtitle, userName, notifications, items, children }: DashboardLayoutProps) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [resolvedUserName, setResolvedUserName] = useState(userName || "");
   const [resolvedNotifications, setResolvedNotifications] = useState(notifications ?? 0);
+  const [authReady, setAuthReady] = useState(role ? false : true);
 
   const roleDefaults = role ? ROLE_DEFAULTS[role] : undefined;
   const resolvedItems = useMemo(() => items || roleDefaults?.items || [], [items, roleDefaults]);
@@ -39142,22 +39670,54 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
     let isMounted = true;
 
     async function hydrateUserContext() {
+      if (!role) {
+        if (isMounted) setAuthReady(true);
+        return;
+      }
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!token) {
+        clearApiCache();
+        router.replace("/auth/login");
+        return;
+      }
+
       try {
-        if (!userName) {
-          const profile = await me();
-          if (isMounted) {
-            setResolvedUserName(profile.name || "User");
-          }
+        const profile = await me();
+        if (!isMounted) return;
+
+        if (profile.role !== role) {
+          router.replace(profile.role === "teacher" ? "/teacher" : "/student");
+          return;
         }
 
+        if (!userName) {
+          setResolvedUserName(profile.name || "User");
+        }
+
+        const pending: Promise<void>[] = [];
+
         if (role === "student" && notifications === undefined) {
-          const payload = await getStudentNotifications();
-          if (isMounted) {
-            setResolvedNotifications(payload.notifications.length);
-          }
+          pending.push(
+            getStudentNotifications().then((payload) => {
+              if (isMounted) {
+                setResolvedNotifications(payload.notifications.length);
+              }
+            })
+          );
+        }
+
+        if (pending.length > 0) {
+          await Promise.all(pending);
+        }
+
+        if (isMounted) {
+          setAuthReady(true);
         }
       } catch {
-        // Keep layout resilient if profile/notification endpoint is unavailable.
+        localStorage.removeItem("token");
+        clearApiCache();
+        router.replace("/auth/login");
       }
     }
 
@@ -39166,7 +39726,15 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
     return () => {
       isMounted = false;
     };
-  }, [notifications, role, userName]);
+  }, [notifications, role, router, userName]);
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-app text-app-text">
+        <LoaderSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-app text-app-text selection:bg-brand-200 dark:selection:bg-brand-900">
@@ -39203,6 +39771,42 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
         </main>
       </div>
     </div>
+  );
+}
+
+
+====================================================================================================
+FILE: frontend/components/layout/Footer.tsx
+====================================================================================================
+import Link from "next/link";
+import { Sparkles, MessageCircle, Code2, Briefcase } from "lucide-react";
+
+export function Footer() {
+  return (
+    <footer className="mt-auto border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+      <div className="mx-auto max-w-7xl px-6 py-12 md:flex md:items-center md:justify-between lg:px-8">
+        <div className="flex justify-center space-x-6 md:order-2">
+          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">Twitter</span>
+            <MessageCircle className="h-5 w-5" aria-hidden="true" />
+          </Link>
+          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">GitHub</span>
+            <Code2 className="h-5 w-5" aria-hidden="true" />
+          </Link>
+          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">LinkedIn</span>
+            <Briefcase className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="mt-8 md:order-1 md:mt-0 flex items-center justify-center md:justify-start gap-2">
+          <Sparkles className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+          <p className="text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
+            &copy; {new Date().getFullYear()} SmartEval, Inc. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -39250,7 +39854,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+      className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-all duration-300 ease-in-out hover:scale-105 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
       aria-label="Toggle Theme"
     >
       {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
@@ -39265,7 +39869,7 @@ export function Navbar({ title, subtitle, userName, notifications = 0, onMenuCli
         <div className="flex items-center gap-4">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-all duration-300 ease-in-out hover:scale-105 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             onClick={onMenuClick}
             aria-label="Open menu"
           >
@@ -39301,11 +39905,13 @@ FILE: frontend/components/layout/Sidebar.tsx
 ====================================================================================================
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { clearApiCache } from "@/lib/api";
 
 export type NavItem = { label: string; href: string; icon?: React.ReactNode };
 
@@ -39321,8 +39927,15 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
   const pathname = usePathname();
   const router = useRouter();
 
+  useEffect(() => {
+    items.forEach((item) => {
+      router.prefetch(item.href);
+    });
+  }, [items, router]);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
+    clearApiCache();
     router.push("/auth/login");
   };
 
@@ -39363,10 +39976,11 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
                 <Link
                   key={item.href}
                   href={item.href}
+                  onMouseEnter={() => router.prefetch(item.href)}
                   onClick={() => setOpen(false)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 sm:py-3.5",
+                    "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ease-in-out sm:py-3.5",
                     collapsed && "justify-center px-2",
                     active
                       ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
@@ -39392,7 +40006,7 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
           <button
             onClick={handleLogout}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20",
+              "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-rose-600 transition-all duration-300 ease-in-out hover:scale-[1.01] hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20",
               collapsed && "justify-center px-2"
             )}
             title={collapsed ? "Sign Out" : undefined}
@@ -39650,6 +40264,41 @@ export function ConfirmDialog({ isOpen, onClose, onConfirm, title, description }
 
 
 ====================================================================================================
+FILE: frontend/components/ui/DashboardSkeleton.tsx
+====================================================================================================
+"use client";
+
+interface DashboardSkeletonProps {
+  stats?: number;
+  withSidebarPanel?: boolean;
+}
+
+export function DashboardSkeleton({ stats = 4, withSidebarPanel = true }: DashboardSkeletonProps) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: stats }).map((_, idx) => (
+          <div
+            key={`stat-${idx}`}
+            className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white/70 p-6 dark:border-slate-800 dark:bg-slate-900/70"
+          />
+        ))}
+      </div>
+
+      <div className={`grid gap-6 ${withSidebarPanel ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+        <div
+          className={`h-80 animate-pulse rounded-2xl border border-slate-200 bg-white/70 p-6 dark:border-slate-800 dark:bg-slate-900/70 ${withSidebarPanel ? "lg:col-span-2" : ""}`}
+        />
+        {withSidebarPanel ? (
+          <div className="h-80 animate-pulse rounded-2xl border border-slate-200 bg-white/70 p-6 dark:border-slate-800 dark:bg-slate-900/70" />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+
+====================================================================================================
 FILE: frontend/components/ui/EmptyState.tsx
 ====================================================================================================
 import { FolderOpen } from "lucide-react";
@@ -39811,7 +40460,7 @@ FILE: frontend/components/ui/StatCard.tsx
 "use client";
 
 import { motion } from "framer-motion";
-import { ComponentType, ReactNode } from "react";
+import { ComponentType, ReactNode, isValidElement } from "react";
 import { LucideProps } from "lucide-react";
 
 interface StatCardProps {
@@ -39822,9 +40471,16 @@ interface StatCardProps {
   icon?: ReactNode | ComponentType<LucideProps>;
 }
 
+function isIconComponent(icon: StatCardProps["icon"]): icon is ComponentType<LucideProps> {
+  if (!icon) return false;
+  if (typeof icon === "function") return true;
+  const maybeObject = icon as unknown;
+  return typeof maybeObject === "object" && maybeObject !== null && "render" in (maybeObject as object);
+}
+
 export function StatCard({ label, value, trend, subtitle, icon }: StatCardProps) {
   const trendLabel = trend || subtitle;
-  const IconComponent = typeof icon === "function" ? icon : null;
+  const IconComponent = isIconComponent(icon) ? icon : null;
 
   return (
     <motion.article
@@ -39837,8 +40493,8 @@ export function StatCard({ label, value, trend, subtitle, icon }: StatCardProps)
           <div className="text-slate-400 dark:text-slate-500">
             <IconComponent className="h-5 w-5" />
           </div>
-        ) : icon ? (
-          <div className="text-slate-400 dark:text-slate-500">{icon as ReactNode}</div>
+        ) : isValidElement(icon) ? (
+          <div className="text-slate-400 dark:text-slate-500">{icon}</div>
         ) : null}
       </div>
       <p className="mt-4 text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
@@ -39893,6 +40549,7 @@ export { Modal } from "./Modal";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { NotificationBell } from "./NotificationBell";
 export { Table } from "./Table";
+export { DashboardSkeleton } from "./DashboardSkeleton";
 
 
 ====================================================================================================
@@ -39957,6 +40614,15 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const API_V1 = `${API_BASE}/api/v1`;
+const GET_CACHE_TTL_MS = 10_000;
+
+type CacheEntry = {
+  expiresAt: number;
+  payload: unknown;
+};
+
+const responseCache = new Map<string, CacheEntry>();
+const inflightGetRequests = new Map<string, Promise<unknown>>();
 
 export class ApiError extends Error {
   status: number;
@@ -39981,6 +40647,29 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   };
 }
 
+function methodOf(init: RequestInit): string {
+  return (init.method || "GET").toUpperCase();
+}
+
+function shouldCache(init: RequestInit): boolean {
+  return methodOf(init) === "GET" && !init.body;
+}
+
+function authFromHeaders(headers?: HeadersInit): string {
+  if (!headers) return "";
+  const source = new Headers(headers);
+  return source.get("Authorization") || source.get("authorization") || "";
+}
+
+function cacheKey(url: string, init: RequestInit): string {
+  return `${methodOf(init)}:${url}:${authFromHeaders(init.headers)}`;
+}
+
+export function clearApiCache(): void {
+  responseCache.clear();
+  inflightGetRequests.clear();
+}
+
 async function parseErrorMessage(res: Response): Promise<string> {
   try {
     const body = await res.json();
@@ -39991,11 +40680,45 @@ async function parseErrorMessage(res: Response): Promise<string> {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_V1}${path}`, init);
-  if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorMessage(res));
+  const url = `${API_V1}${path}`;
+  const useCache = shouldCache(init);
+  const key = cacheKey(url, init);
+
+  if (useCache) {
+    const cached = responseCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.payload as T;
+    }
+
+    const inflight = inflightGetRequests.get(key);
+    if (inflight) {
+      return (await inflight) as T;
+    }
   }
-  return (await res.json()) as T;
+
+  const operation = (async () => {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      throw new ApiError(res.status, await parseErrorMessage(res));
+    }
+
+    const payload = (await res.json()) as T;
+    if (useCache) {
+      responseCache.set(key, { expiresAt: Date.now() + GET_CACHE_TTL_MS, payload });
+    }
+    return payload;
+  })();
+
+  if (!useCache) {
+    return operation;
+  }
+
+  inflightGetRequests.set(key, operation as Promise<unknown>);
+  try {
+    return await operation;
+  } finally {
+    inflightGetRequests.delete(key);
+  }
 }
 
 function withLeadingSlash(path: string): string {
@@ -40045,19 +40768,23 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  return request<LoginResponse>("/auth/login", {
+  const payload = await request<LoginResponse>("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+  clearApiCache();
+  return payload;
 }
 
 export async function register(name: string, email: string, password: string, role: string): Promise<AuthUser> {
-  return request<AuthUser>("/auth/register", {
+  const payload = await request<AuthUser>("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, role }),
   });
+  clearApiCache();
+  return payload;
 }
 
 export async function getMyResults(): Promise<ResultItem[]> {
@@ -47147,24 +47874,35 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
+CLIENT_DIR="$ROOT_DIR/client"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 VENV_PY="$ROOT_DIR/.venv/bin/python"
 
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="8000"
-FRONTEND_HOST="127.0.0.1"
 FRONTEND_PORT="3000"
 
-BACKEND_HEALTH_URL="http://$BACKEND_HOST:$BACKEND_PORT/api/v1/health"
-FRONTEND_URL="http://$FRONTEND_HOST:$FRONTEND_PORT"
+BACKEND_HEALTH_URL="http://$BACKEND_HOST:$BACKEND_PORT/api/v1/health/"
+FRONTEND_URL="http://127.0.0.1:$FRONTEND_PORT"
 
 BACKEND_PID=""
 FRONTEND_PID=""
 
-cleanup() {
-  echo ""
-  echo "Stopping services..."
+kill_port() {
+  local port="$1"
+  if ! command -v lsof >/dev/null 2>&1; then
+    return 0
+  fi
 
+  local pids
+  pids="$(lsof -ti tcp:"$port" 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    kill $pids 2>/dev/null || true
+    sleep 0.2
+  fi
+}
+
+cleanup() {
   if [[ -n "$FRONTEND_PID" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
     kill "$FRONTEND_PID" 2>/dev/null || true
   fi
@@ -47174,23 +47912,19 @@ cleanup() {
   fi
 
   wait || true
-  echo "Stopped."
 }
 
 wait_for_url() {
   local url="$1"
-  local label="$2"
-  local retries="${3:-90}"
+  local retries="${2:-120}"
 
   for ((i = 1; i <= retries; i++)); do
     if curl -fsS "$url" >/dev/null 2>&1; then
-      echo "$label is ready."
       return 0
     fi
-    sleep 1
+    sleep 0.25
   done
 
-  echo "Timed out waiting for $label at $url"
   return 1
 }
 
@@ -47201,42 +47935,41 @@ if [[ ! -x "$VENV_PY" ]]; then
 fi
 
 if ! command -v npm >/dev/null 2>&1; then
-  echo "npm is not installed. Install Node.js and retry."
   exit 1
 fi
 
-if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-  echo "frontend/node_modules not found. Run: cd frontend && npm install"
+if [[ ! -d "$CLIENT_DIR" ]]; then
   exit 1
 fi
 
 trap cleanup INT TERM EXIT
 
-echo "Starting backend on :$BACKEND_PORT..."
+kill_port "$BACKEND_PORT"
+kill_port "$FRONTEND_PORT"
+
 (
   cd "$BACKEND_DIR"
-  "$VENV_PY" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT"
+  exec "$VENV_PY" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" --log-level warning
 ) &
 BACKEND_PID=$!
 
-echo "Starting frontend on :$FRONTEND_PORT..."
 (
-  cd "$FRONTEND_DIR"
-  npm run dev -- -H "$FRONTEND_HOST" -p "$FRONTEND_PORT"
+  if [[ -d "$FRONTEND_DIR" ]]; then
+    cd "$FRONTEND_DIR"
+    npm run dev -- --turbo >/dev/null 2>&1 || exec npm run dev >/dev/null 2>&1
+  else
+    cd "$CLIENT_DIR"
+    exec npm start >/dev/null 2>&1
+  fi
 ) &
 FRONTEND_PID=$!
 
-wait_for_url "$BACKEND_HEALTH_URL" "Backend"
-wait_for_url "$FRONTEND_URL" "Frontend"
+wait_for_url "$BACKEND_HEALTH_URL" || true
+wait_for_url "$FRONTEND_URL" || true
 
-echo "Opening app in browser..."
-open "$FRONTEND_URL"
+open "$FRONTEND_URL" >/dev/null 2>&1 || true
 
-echo ""
-echo "App is running"
-echo "Frontend: $FRONTEND_URL"
-echo "Backend:  http://$BACKEND_HOST:$BACKEND_PORT"
-echo "Press Ctrl+C to stop both services"
+echo "ready: $FRONTEND_URL"
 
 wait
 

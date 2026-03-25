@@ -152,7 +152,7 @@ export default function TeacherAnalyticsPage() {
                    </div>
                    <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-500/10">
                      <h4 className="font-medium text-emerald-800 dark:text-emerald-400">Improvement Noted</h4>
-                     <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-500">Scores in basic algebra have improved by 15% compared to the previous week's evaluation.</p>
+                     <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-500">Scores in basic algebra have improved by 15% compared to the previous week&apos;s evaluation.</p>
                    </div>
                    <div className="rounded-xl bg-brand-50 p-4 dark:bg-brand-500/10">
                      <h4 className="font-medium text-brand-800 dark:text-brand-400">Personalized Intervention</h4>

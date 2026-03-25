@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useScroll, useTransform, Variants } from "framer-motion";
+import { motion, useReducedMotion, Variants } from "framer-motion";
 import { Sparkles, ArrowRight, Brain, ShieldCheck, Zap, Activity, CheckCircle, BarChart3, Star, PlayCircle } from "lucide-react";
 import Image from "next/image";
 import { Footer } from "@/components/layout/Footer";
@@ -22,20 +22,19 @@ const fadeUp: Variants = {
 };
 
 export default function Home() {
-  const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
+  const reduceMotion = useReducedMotion();
 
   return (
     <main className="min-h-screen bg-slate-50 selection:bg-brand-200 dark:bg-slate-950 dark:selection:bg-brand-900 flex flex-col">
       {/* Abstract Background Elements */}
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-100/40 via-slate-50 to-slate-50 dark:from-brand-900/10 dark:via-slate-950 dark:to-slate-950" />
-      <motion.div style={{ y }} className="absolute top-0 right-0 -z-10 w-[600px] h-[600px] bg-gradient-to-br from-brand-400/20 to-cyan-400/20 blur-3xl rounded-full opacity-60 dark:from-brand-600/10 dark:to-cyan-600/10" />
+      <div className="absolute top-0 right-0 -z-10 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-brand-400/20 to-cyan-400/20 opacity-60 blur-3xl dark:from-brand-600/10 dark:to-cyan-600/10" />
 
       {/* Navbar */}
       <motion.nav 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        transition={{ duration: reduceMotion ? 0 : 0.3, ease: "easeOut" }}
         className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-white/60 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-950/60 transition-all"
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
@@ -104,20 +103,47 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+            transition={{ duration: reduceMotion ? 0 : 0.45, delay: reduceMotion ? 0 : 0.1, ease: "easeOut" }}
             className="mt-20 mx-auto max-w-6xl relative"
           >
             <div className="absolute inset-x-0 -top-4 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-8">
               <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
             </div>
             <div className="rounded-2xl border border-slate-200/50 bg-white/40 p-2 backdrop-blur-xl shadow-2xl dark:border-slate-800/50 dark:bg-slate-900/40">
-              <img 
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop" 
-                alt="App Dashboard Preview" 
-                className="rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm object-cover"
+              <Image
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop"
+                alt="App Dashboard Preview"
+                width={2070}
+                height={1200}
+                priority
+                className="rounded-xl border border-slate-200/50 object-cover shadow-sm dark:border-slate-800/50"
+                sizes="(max-width: 768px) 100vw, 1200px"
               />
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      <section id="demo" className="border-y border-slate-200/50 bg-slate-100/50 py-20 dark:border-slate-800/50 dark:bg-slate-900/30">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">See the full grading workflow in one glance</h2>
+              <p className="mt-4 max-w-2xl text-lg text-slate-600 dark:text-slate-400">SmartEval combines upload, evaluation, analytics, and student feedback in one streamlined dashboard so teachers can move from submission to insight without context switching.</p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/auth/login" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">Open live dashboard</Link>
+                <Link href="/auth/register" className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Create free account</Link>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+              <ul className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+                <li className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-emerald-500" /> Upload rubric and scripts</li>
+                <li className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-emerald-500" /> AI grades with traceable rationale</li>
+                <li className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-emerald-500" /> Instant analytics by class and topic</li>
+                <li className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-emerald-500" /> Personalized student action plans</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -166,8 +192,8 @@ export default function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                whileHover={{ y: -5, scale: 1.02 }}
+                transition={{ duration: reduceMotion ? 0 : 0.35, delay: reduceMotion ? 0 : i * 0.06 }}
+                whileHover={reduceMotion ? undefined : { y: -3, scale: 1.01 }}
                 className="relative group overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-8 shadow-sm transition-all hover:shadow-xl dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-brand-500/30"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
@@ -215,7 +241,7 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.15 }}
+                transition={{ duration: reduceMotion ? 0 : 0.35, delay: reduceMotion ? 0 : i * 0.08 }}
                 className="flex flex-col justify-between rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:ring-slate-800"
               >
                 <div>
@@ -223,11 +249,11 @@ export default function Home() {
                     {[1,2,3,4,5].map(star => <Star key={star} className="h-5 w-5 fill-current" />)}
                   </div>
                   <blockquote className="text-lg leading-relaxed text-slate-700 dark:text-slate-300">
-                    "{testimonial.body}"
+                    &ldquo;{testimonial.body}&rdquo;
                   </blockquote>
                 </div>
                 <div className="mt-8 flex items-center gap-x-4">
-                  <img src={testimonial.imageUrl} alt="" className="h-12 w-12 rounded-full bg-slate-50 object-cover" />
+                  <Image src={testimonial.imageUrl} alt={testimonial.author} width={48} height={48} className="h-12 w-12 rounded-full bg-slate-50 object-cover" />
                   <div>
                     <div className="font-semibold text-slate-900 dark:text-white">{testimonial.author}</div>
                     <div className="text-sm text-slate-500">{testimonial.role}</div>

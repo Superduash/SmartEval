@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Sidebar, NavItem } from "./Sidebar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   BookOpen,
   Brain,
@@ -19,6 +19,44 @@ import {
 import { Role } from "@/types";
 import { LoaderSpinner } from "@/components/ui";
 import { clearApiCache, getStudentNotifications, me } from "@/lib/api";
+
+const AUTH_PROFILE_CACHE_KEY = "se_auth_profile_cache";
+const AUTH_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CachedProfile = {
+  role: Role;
+  name?: string;
+  cachedAt: number;
+};
+
+function readCachedProfile(): CachedProfile | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as CachedProfile;
+    if (!parsed.role || !parsed.cachedAt) return null;
+    if (Date.now() - parsed.cachedAt > AUTH_PROFILE_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    window.sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeCachedProfile(profile: { role: Role; name?: string }): void {
+  if (typeof window === "undefined") return;
+  const nextValue: CachedProfile = {
+    role: profile.role,
+    name: profile.name,
+    cachedAt: Date.now(),
+  };
+  window.sessionStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(nextValue));
+}
 
 interface DashboardLayoutProps {
   role?: Role;
@@ -72,6 +110,7 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
 
   useEffect(() => {
     let isMounted = true;
+    const cachedProfile = readCachedProfile();
 
     async function hydrateUserContext() {
       if (!role) {
@@ -86,6 +125,15 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
         return;
       }
 
+      if (cachedProfile?.role === role) {
+        if (!userName && cachedProfile.name) {
+          setResolvedUserName(cachedProfile.name);
+        }
+        if (isMounted) {
+          setAuthReady(true);
+        }
+      }
+
       try {
         const profile = await me();
         if (!isMounted) return;
@@ -94,6 +142,8 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
           router.replace(profile.role === "teacher" ? "/teacher" : "/student");
           return;
         }
+
+        writeCachedProfile({ role: profile.role, name: profile.name });
 
         if (!userName) {
           setResolvedUserName(profile.name || "User");
@@ -119,6 +169,13 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
           setAuthReady(true);
         }
       } catch {
+        if (cachedProfile?.role === role) {
+          if (isMounted) {
+            setAuthReady(true);
+          }
+          return;
+        }
+
         localStorage.removeItem("token");
         clearApiCache();
         router.replace("/auth/login");
@@ -160,18 +217,14 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
             onMenuClick={() => setSidebarOpen(true)}
           />
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={resolvedTitle}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="flex-1 space-y-6 pb-12"
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
+            className="flex-1 space-y-6 pb-12"
+          >
+            {children}
+          </motion.div>
         </main>
       </div>
     </div>

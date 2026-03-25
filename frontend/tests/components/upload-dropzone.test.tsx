@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 
-import { UploadDropzone } from "@/components/dashboard/UploadDropzone";
+import { UploadDropzone } from "@/components/forms/UploadDropzone";
 
 describe("UploadDropzone", () => {
   it("handles file selection", () => {

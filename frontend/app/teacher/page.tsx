@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, FileText, CheckCircle, TrendingUp, HelpCircle, Activity, BookOpen, Clock, Calendar } from "lucide-react";
+import { Users, FileText, CheckCircle, TrendingUp, Activity, BookOpen, Clock, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ErrorAlert, DashboardSkeleton, StatCard } from "@/components/ui";
+import { ErrorAlert, DashboardSkeleton } from "@/components/ui";
 import { ApiError, getTeacherAnalytics, getTeacherResults } from "@/lib/api";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, PieChart, Pie, Cell
+  Legend, PieChart, Pie, Cell
 } from 'recharts';
 
 type DashboardStat = {
@@ -200,9 +200,9 @@ export default function TeacherDashboard() {
                         cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                      <Area type="monotone" dataKey="avgScore" name="Average Score" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorAvg)" />
-                      <Area type="step" dataKey="highest" name="Highest Score" stroke="#10b981" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
-                      <Area type="step" dataKey="lowest" name="Lowest Score" stroke="#ef4444" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
+                      <Area type="monotone" dataKey="avgScore" name="Average Score" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorAvg)" isAnimationActive={false} />
+                      <Area type="step" dataKey="highest" name="Highest Score" stroke="#10b981" strokeWidth={2} fill="transparent" strokeDasharray="5 5" isAnimationActive={false} />
+                      <Area type="step" dataKey="lowest" name="Lowest Score" stroke="#ef4444" strokeWidth={2} fill="transparent" strokeDasharray="5 5" isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -226,6 +226,7 @@ export default function TeacherDashboard() {
                         outerRadius={80}
                         paddingAngle={5}
                         dataKey="value"
+                        isAnimationActive={false}
                       >
                         {subjectData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />

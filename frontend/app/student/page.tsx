@@ -5,11 +5,11 @@ import { BookOpen, Star, Target, TrendingUp, Trophy, Calendar, Award, ArrowUpRig
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ErrorAlert, DashboardSkeleton, StatCard } from "@/components/ui";
+import { ErrorAlert, DashboardSkeleton } from "@/components/ui";
 import { ApiError, getStudentAnalytics, getStudentResults } from "@/lib/api";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend
 } from 'recharts';
 
 type DashboardStat = {
@@ -119,7 +119,7 @@ export default function StudentDashboard() {
                 Student Portal
               </h1>
               <p className="mt-1 text-base font-medium text-slate-500 dark:text-slate-400">
-                Welcome back! Let's conquer today's goals.
+                Welcome back! Let&apos;s conquer today&apos;s goals.
               </p>
             </div>
           </div>
@@ -195,8 +195,8 @@ export default function StudentDashboard() {
                           contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
                         />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: "20px" }} />
-                        <Line type="monotone" dataKey="score" name="My Score" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 6, strokeWidth: 2 }} activeDot={{ r: 8 }} />
-                        <Line type="monotone" dataKey="average" name="Class Average" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                        <Line type="monotone" dataKey="score" name="My Score" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 6, strokeWidth: 2 }} activeDot={{ r: 8 }} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="average" name="Class Average" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
                       </LineChart>
                     </ResponsiveContainer>
                  </div>
@@ -213,7 +213,7 @@ export default function StudentDashboard() {
                           <PolarGrid stroke="#e2e8f0" />
                           <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11 }} />
                           <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                          <Radar name="Proficiency" dataKey="A" stroke="#0ea5e9" strokeWidth={2} fill="#0ea5e9" fillOpacity={0.4} />
+                          <Radar name="Proficiency" dataKey="A" stroke="#0ea5e9" strokeWidth={2} fill="#0ea5e9" fillOpacity={0.4} isAnimationActive={false} />
                           <RechartsTooltip />
                         </RadarChart>
                       </ResponsiveContainer>
