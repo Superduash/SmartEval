@@ -1,0 +1,18 @@
+.widget-panel {
+  border-radius: 1rem;
+  background-color: var(--panel);
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.08);
+  border: 1px solid rgb(148 163 184 / 0.2);
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid.two-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

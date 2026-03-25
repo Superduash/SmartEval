@@ -1,0 +1,81 @@
+ereexportveCo("
+ex <exportv"use c exptor(staextexportveConolntes.stS   exptor(sta(texpoxles.stS  bordees.stStudentResulansparent xt   expohroealexpers
+expohHeexpr(
+es.stStudentResults()});expers onChan default function Regies.stStuden{
+es.<Hes.stStudenme    } catch (err) {
+      con    e]      con            ))}
+          <Email] = useState("");
+  co          <Toolse         sN      cone( late-30          <Toolt           <Leexpoh/y"nt  return (
+   etata);
+      rdi  
+
+    rurn (sword}
+          St   etata));      rdi[e
+    rurn rro          on   ")         c function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+ i expohroes.stStue)exportveContainer width="100%" heig}:  [    <    <div ;
+
+exportveCo("
+exp, role);
+      router.pu
+exportveCo("
+exportveContauncera
+exportveContatex
+expsage = err instaexportveContatex
+errexportveCo("
+exisexportveConleexportveCo("
+exportveContauncera
+exportveContatex
+exp);
+}
+diexportveCon  exportveContatex
+e(
+exp);
+}
+EOF
+
+caNa}
+EOrelaEOve EOrelaEOve EOrelaEOvems-center justify-center overflow-hidden p-6">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,#22d3ee_0%,transparent_35%),radial-gradient(circle_at_85%_85%,#fb7185_0%,transparent_25%)] opacity-20" />
+      <form className="card relative w-full max-w-md space-y-4 p-8" onSubmit={onSubmit}>
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Get Started</p>
+        <h1 className="text-3xl font-bold">Create Account</h1>
+        <input
+          className="w-full rounded-xl border border-slate-300 bg-transparent p-3"
+          placeholder="Name"
+          value={name}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+          required
+        />
+        <input
+          className="w-full rounded-xl border border-slate-300 bg-transparent p-3"
+          placeholder="Email"
+          value={email}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          className="w-full rounded-xl border border-slate-300 bg-transparent p-3"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+          required
+        />
+        <select
+          className="w-full rounded-xl border border-slate-300 bg-transparent p-3"
+          value={role}
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => setRole(e.target.value as "student" | "teacher")}
+        >
+          <option value="student">Student</option>
+          <option value="teacher">Teacher</option>
+        </select>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <button className="w-full rounded-xl bg-brand-600 p-3 font-semibold text-white disabled:opacity-60" type="submit" disabled={loading}>
+          {loading ? "Creating account..." : "Register"}
+        </button>
+      </form>
+    </main>
+  );
+}
+EOF
