@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Users, TrendingUp, AlertTriangle } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ChartCard, EmptyState, ErrorAlert, StatCard, LoaderSpinner } from "@/components/ui";
+import { ChartCard, EmptyState, ErrorAlert, StatCard, DashboardSkeleton } from "@/components/ui";
 import { ApiError, getTeacherAnalytics, getTeacherResults } from "@/lib/api";
 import { ChartPayload } from "@/types";
 
@@ -93,19 +93,17 @@ export default function TeacherAnalyticsPage() {
               min={1}
               value={examId}
               onChange={(e) => setExamId(Number(e.target.value || 1))}
-              className="w-24 rounded-xl border border-slate-300 bg-transparent px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700"
+              className="w-24 rounded-xl border border-slate-300 bg-transparent px-3 py-2 text-sm transition-all duration-300 ease-in-out focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700"
               aria-label="Exam ID"
             />
-            <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-500">
+            <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-md active:scale-[0.99]">
               <Download className="h-4 w-4" /> Export Report
             </button>
           </div>
         </div>
 
         {loading ? (
-           <div className="flex h-[60vh] items-center justify-center">
-             <LoaderSpinner />
-           </div>
+          <DashboardSkeleton stats={3} withSidebarPanel={false} />
         ) : error ? (
           <ErrorAlert message={error} />
         ) : (

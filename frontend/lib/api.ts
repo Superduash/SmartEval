@@ -14,6 +14,15 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const API_V1 = `${API_BASE}/api/v1`;
+const GET_CACHE_TTL_MS = 10_000;
+
+type CacheEntry = {
+  expiresAt: number;
+  payload: unknown;
+};
+
+const responseCache = new Map<string, CacheEntry>();
+const inflightGetRequests = new Map<string, Promise<unknown>>();
 
 export class ApiError extends Error {
   status: number;
@@ -38,6 +47,29 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   };
 }
 
+function methodOf(init: RequestInit): string {
+  return (init.method || "GET").toUpperCase();
+}
+
+function shouldCache(init: RequestInit): boolean {
+  return methodOf(init) === "GET" && !init.body;
+}
+
+function authFromHeaders(headers?: HeadersInit): string {
+  if (!headers) return "";
+  const source = new Headers(headers);
+  return source.get("Authorization") || source.get("authorization") || "";
+}
+
+function cacheKey(url: string, init: RequestInit): string {
+  return `${methodOf(init)}:${url}:${authFromHeaders(init.headers)}`;
+}
+
+export function clearApiCache(): void {
+  responseCache.clear();
+  inflightGetRequests.clear();
+}
+
 async function parseErrorMessage(res: Response): Promise<string> {
   try {
     const body = await res.json();
@@ -48,11 +80,45 @@ async function parseErrorMessage(res: Response): Promise<string> {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_V1}${path}`, init);
-  if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorMessage(res));
+  const url = `${API_V1}${path}`;
+  const useCache = shouldCache(init);
+  const key = cacheKey(url, init);
+
+  if (useCache) {
+    const cached = responseCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.payload as T;
+    }
+
+    const inflight = inflightGetRequests.get(key);
+    if (inflight) {
+      return (await inflight) as T;
+    }
   }
-  return (await res.json()) as T;
+
+  const operation = (async () => {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      throw new ApiError(res.status, await parseErrorMessage(res));
+    }
+
+    const payload = (await res.json()) as T;
+    if (useCache) {
+      responseCache.set(key, { expiresAt: Date.now() + GET_CACHE_TTL_MS, payload });
+    }
+    return payload;
+  })();
+
+  if (!useCache) {
+    return operation;
+  }
+
+  inflightGetRequests.set(key, operation as Promise<unknown>);
+  try {
+    return await operation;
+  } finally {
+    inflightGetRequests.delete(key);
+  }
 }
 
 function withLeadingSlash(path: string): string {
@@ -102,19 +168,23 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  return request<LoginResponse>("/auth/login", {
+  const payload = await request<LoginResponse>("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+  clearApiCache();
+  return payload;
 }
 
 export async function register(name: string, email: string, password: string, role: string): Promise<AuthUser> {
-  return request<AuthUser>("/auth/register", {
+  const payload = await request<AuthUser>("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, role }),
   });
+  clearApiCache();
+  return payload;
 }
 
 export async function getMyResults(): Promise<ResultItem[]> {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock, Mail, User, GraduationCap, Sparkles } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -20,6 +20,10 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    router.prefetch("/auth/login");
+  }, [router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -27,7 +31,7 @@ export default function RegisterPage() {
 
     try {
       await register(name, email, password, role);
-      router.push("/auth/login");
+      router.replace("/auth/login");
     } catch (err) {
       const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Registration failed.";
       if (message.toLowerCase().includes("failed to fetch")) {
@@ -60,7 +64,20 @@ export default function RegisterPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Join Smart Evaluation today</p>
         </div>
 
-        {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              key="register-error"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-6"
+            >
+              <ErrorAlert message={error} />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -103,7 +120,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="John Doe"
               />
             </div>
@@ -120,7 +137,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="you@example.com"
               />
             </div>
@@ -137,7 +154,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="••••••••"
               />
               <button
@@ -153,7 +170,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-slate-800 hover:shadow-slate-900/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:pointer-events-none disabled:opacity-70 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-slate-900/25 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:pointer-events-none disabled:opacity-70 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           >
             {loading ? <LoaderSpinner className="p-0 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white dark:[&_svg]:text-slate-900" /> : "Create Account"}
           </button>

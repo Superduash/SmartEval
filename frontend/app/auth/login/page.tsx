@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react";
 
 import { ApiError, login } from "@/lib/api";
@@ -17,6 +17,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    router.prefetch("/teacher");
+    router.prefetch("/student");
+    router.prefetch("/auth/register");
+  }, [router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -25,7 +31,7 @@ export default function LoginPage() {
     try {
       const data = await login(email, password);
       localStorage.setItem("token", data.access_token);
-      router.push(data.role === "teacher" ? "/teacher" : "/student");
+      router.replace(data.role === "teacher" ? "/teacher" : "/student");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Invalid credentials.");
     } finally {
@@ -53,7 +59,20 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Please enter your details to sign in</p>
         </div>
 
-        {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              key="login-error"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-6"
+            >
+              <ErrorAlert message={error} />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="space-y-1">
@@ -67,7 +86,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-3 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="you@example.com"
               />
             </div>
@@ -84,7 +103,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
+                className="w-full rounded-xl border border-slate-300 bg-transparent py-2.5 pl-10 pr-10 text-sm transition-all duration-300 ease-in-out placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 sm:text-sm"
                 placeholder="••••••••"
               />
               <button
@@ -100,7 +119,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-500 hover:shadow-brand-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:pointer-events-none disabled:opacity-70 mt-6"
+            className="mt-6 flex w-full items-center justify-center rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-brand-500/25 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:pointer-events-none disabled:opacity-70"
           >
             {loading ? <LoaderSpinner className="p-0 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white" /> : "Sign in"}
           </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ComponentType, ReactNode } from "react";
+import { ComponentType, ReactNode, isValidElement } from "react";
 import { LucideProps } from "lucide-react";
 
 interface StatCardProps {
@@ -12,9 +12,16 @@ interface StatCardProps {
   icon?: ReactNode | ComponentType<LucideProps>;
 }
 
+function isIconComponent(icon: StatCardProps["icon"]): icon is ComponentType<LucideProps> {
+  if (!icon) return false;
+  if (typeof icon === "function") return true;
+  const maybeObject = icon as unknown;
+  return typeof maybeObject === "object" && maybeObject !== null && "render" in (maybeObject as object);
+}
+
 export function StatCard({ label, value, trend, subtitle, icon }: StatCardProps) {
   const trendLabel = trend || subtitle;
-  const IconComponent = typeof icon === "function" ? icon : null;
+  const IconComponent = isIconComponent(icon) ? icon : null;
 
   return (
     <motion.article
@@ -27,8 +34,8 @@ export function StatCard({ label, value, trend, subtitle, icon }: StatCardProps)
           <div className="text-slate-400 dark:text-slate-500">
             <IconComponent className="h-5 w-5" />
           </div>
-        ) : icon ? (
-          <div className="text-slate-400 dark:text-slate-500">{icon as ReactNode}</div>
+        ) : isValidElement(icon) ? (
+          <div className="text-slate-400 dark:text-slate-500">{icon}</div>
         ) : null}
       </div>
       <p className="mt-4 text-3xl font-bold text-slate-900 dark:text-white">{value}</p>

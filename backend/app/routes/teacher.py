@@ -50,6 +50,8 @@ def upload_file_endpoint(
         content = file.file.read()
         upload = create_upload(db, cast(int, teacher.id), safe_name, content, type, exam_id)
         return upload
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Teacher upload failed for teacher=%s exam=%s", teacher.id, exam_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload file") from exc

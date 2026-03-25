@@ -38,7 +38,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+      className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-all duration-300 ease-in-out hover:scale-105 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
       aria-label="Toggle Theme"
     >
       {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
@@ -53,7 +53,7 @@ export function Navbar({ title, subtitle, userName, notifications = 0, onMenuCli
         <div className="flex items-center gap-4">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-all duration-300 ease-in-out hover:scale-105 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             onClick={onMenuClick}
             aria-label="Open menu"
           >

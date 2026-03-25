@@ -5,6 +5,9 @@ from app.services.storage.factory import get_storage_service
 
 
 def create_upload(db: Session, user_id: int, file_name: str, content: bytes, upload_type: UploadType, exam_id: int | None = None) -> Upload:
+    if not content:
+        raise ValueError("Empty file content is not allowed")
+
     storage = get_storage_service()
     path = storage.save_file(file_name, content)
 

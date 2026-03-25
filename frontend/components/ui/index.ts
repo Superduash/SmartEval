@@ -7,3 +7,4 @@ export { Modal } from "./Modal";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { NotificationBell } from "./NotificationBell";
 export { Table } from "./Table";
+export { DashboardSkeleton } from "./DashboardSkeleton";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Sidebar, NavItem } from "./Sidebar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,14 +10,15 @@ import {
   Brain,
   ChartColumnBig,
   ClipboardCheck,
-  History,
   House,
+  History,
   LineChart,
   Upload,
   Users,
 } from "lucide-react";
 import { Role } from "@/types";
-import { getStudentNotifications, me } from "@/lib/api";
+import { LoaderSpinner } from "@/components/ui";
+import { clearApiCache, getStudentNotifications, me } from "@/lib/api";
 
 interface DashboardLayoutProps {
   role?: Role;
@@ -56,10 +58,12 @@ const ROLE_DEFAULTS: Record<Role, { title: string; subtitle: string; items: NavI
 };
 
 export function DashboardLayout({ role, title, subtitle, userName, notifications, items, children }: DashboardLayoutProps) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [resolvedUserName, setResolvedUserName] = useState(userName || "");
   const [resolvedNotifications, setResolvedNotifications] = useState(notifications ?? 0);
+  const [authReady, setAuthReady] = useState(role ? false : true);
 
   const roleDefaults = role ? ROLE_DEFAULTS[role] : undefined;
   const resolvedItems = useMemo(() => items || roleDefaults?.items || [], [items, roleDefaults]);
@@ -70,22 +74,54 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
     let isMounted = true;
 
     async function hydrateUserContext() {
+      if (!role) {
+        if (isMounted) setAuthReady(true);
+        return;
+      }
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!token) {
+        clearApiCache();
+        router.replace("/auth/login");
+        return;
+      }
+
       try {
-        if (!userName) {
-          const profile = await me();
-          if (isMounted) {
-            setResolvedUserName(profile.name || "User");
-          }
+        const profile = await me();
+        if (!isMounted) return;
+
+        if (profile.role !== role) {
+          router.replace(profile.role === "teacher" ? "/teacher" : "/student");
+          return;
         }
 
+        if (!userName) {
+          setResolvedUserName(profile.name || "User");
+        }
+
+        const pending: Promise<void>[] = [];
+
         if (role === "student" && notifications === undefined) {
-          const payload = await getStudentNotifications();
-          if (isMounted) {
-            setResolvedNotifications(payload.notifications.length);
-          }
+          pending.push(
+            getStudentNotifications().then((payload) => {
+              if (isMounted) {
+                setResolvedNotifications(payload.notifications.length);
+              }
+            })
+          );
+        }
+
+        if (pending.length > 0) {
+          await Promise.all(pending);
+        }
+
+        if (isMounted) {
+          setAuthReady(true);
         }
       } catch {
-        // Keep layout resilient if profile/notification endpoint is unavailable.
+        localStorage.removeItem("token");
+        clearApiCache();
+        router.replace("/auth/login");
       }
     }
 
@@ -94,7 +130,15 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
     return () => {
       isMounted = false;
     };
-  }, [notifications, role, userName]);
+  }, [notifications, role, router, userName]);
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-app text-app-text">
+        <LoaderSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-app text-app-text selection:bg-brand-200 dark:selection:bg-brand-900">

@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { clearApiCache } from "@/lib/api";
 
 export type NavItem = { label: string; href: string; icon?: React.ReactNode };
 
@@ -20,8 +22,15 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
   const pathname = usePathname();
   const router = useRouter();
 
+  useEffect(() => {
+    items.forEach((item) => {
+      router.prefetch(item.href);
+    });
+  }, [items, router]);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
+    clearApiCache();
     router.push("/auth/login");
   };
 
@@ -62,10 +71,11 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
                 <Link
                   key={item.href}
                   href={item.href}
+                  onMouseEnter={() => router.prefetch(item.href)}
                   onClick={() => setOpen(false)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 sm:py-3.5",
+                    "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ease-in-out sm:py-3.5",
                     collapsed && "justify-center px-2",
                     active
                       ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
@@ -91,7 +101,7 @@ export function Sidebar({ items, open, setOpen, collapsed, onToggleCollapse }: S
           <button
             onClick={handleLogout}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20",
+              "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-rose-600 transition-all duration-300 ease-in-out hover:scale-[1.01] hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20",
               collapsed && "justify-center px-2"
             )}
             title={collapsed ? "Sign Out" : undefined}
