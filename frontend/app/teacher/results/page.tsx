@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ApiError, getTeacherResults } from "@/lib/api";
+import { ApiError, exportTeacherResults, getTeacherResults } from "@/lib/api";
 import { EmptyState, ErrorAlert, LoaderSpinner, Table } from "@/components/ui";
 
 type ExamResult = {
@@ -87,7 +87,11 @@ export default function TeacherResultsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Review and publish graded student papers.</p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            <button
+              type="button"
+              onClick={() => void exportTeacherResults()}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+            >
               <FileDown className="h-4 w-4" /> Export CSV
             </button>
           </div>
@@ -154,7 +158,7 @@ export default function TeacherResultsPage() {
                       <td className="px-6 py-4 text-right">
                         {result.status === "completed" ? (
                            <Link 
-                            href={`/teacher/results`}
+                           href={`/teacher/reports?examId=${result.exam_id}`}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-600 dark:hover:bg-slate-800"
                            >
                               <ChevronRight className="h-5 w-5" />

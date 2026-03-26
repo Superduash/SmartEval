@@ -10,9 +10,12 @@ import {
   Brain,
   ChartColumnBig,
   ClipboardCheck,
+  FileSpreadsheet,
   House,
   History,
   LineChart,
+  School,
+  Settings,
   Upload,
   Users,
 } from "lucide-react";
@@ -77,6 +80,8 @@ const ROLE_DEFAULTS: Record<Role, { title: string; subtitle: string; items: NavI
       { label: "Upload", href: "/teacher/upload", icon: <Upload className="h-5 w-5" /> },
       { label: "Results", href: "/teacher/results", icon: <ClipboardCheck className="h-5 w-5" /> },
       { label: "Analytics", href: "/teacher/analytics", icon: <ChartColumnBig className="h-5 w-5" /> },
+      { label: "Reports", href: "/teacher/reports", icon: <FileSpreadsheet className="h-5 w-5" /> },
+      { label: "Settings", href: "/teacher/settings", icon: <Settings className="h-5 w-5" /> },
     ],
   },
   student: {
@@ -89,8 +94,11 @@ const ROLE_DEFAULTS: Record<Role, { title: string; subtitle: string; items: NavI
       { label: "Analytics", href: "/student/analytics", icon: <LineChart className="h-5 w-5" /> },
       { label: "Trainer", href: "/student/trainer", icon: <Brain className="h-5 w-5" /> },
       { label: "Parent", href: "/student/parent", icon: <Users className="h-5 w-5" /> },
+      { label: "Teachers", href: "/student/teachers", icon: <School className="h-5 w-5" /> },
       { label: "History", href: "/student/history", icon: <History className="h-5 w-5" /> },
       { label: "Results", href: "/student/results", icon: <BookOpen className="h-5 w-5" /> },
+      { label: "Feedback", href: "/student/feedback", icon: <FileSpreadsheet className="h-5 w-5" /> },
+      { label: "Settings", href: "/student/settings", icon: <Settings className="h-5 w-5" /> },
     ],
   },
 };
@@ -155,7 +163,7 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
           pending.push(
             getStudentNotifications().then((payload) => {
               if (isMounted) {
-                setResolvedNotifications(payload.notifications.length);
+                setResolvedNotifications(payload.notifications.filter((item) => !item.is_read).length);
               }
             })
           );
@@ -212,6 +220,7 @@ export function DashboardLayout({ role, title, subtitle, userName, notifications
           <Navbar
             title={resolvedTitle}
             subtitle={resolvedSubtitle}
+            role={role}
             userName={resolvedUserName || userName || "User"}
             notifications={resolvedNotifications}
             onMenuClick={() => setSidebarOpen(true)}

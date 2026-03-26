@@ -33,3 +33,33 @@ def list_notifications(db: Session, *, user_id: int, limit: int = 50) -> list[No
         .limit(limit)
         .all()
     )
+
+
+def mark_notification_read(db: Session, *, user_id: int, notification_id: int, is_read: bool) -> Notification | None:
+    notification = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.user_id == user_id)
+        .first()
+    )
+    if not notification:
+        return None
+
+    notification.is_read = is_read
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+
+def delete_notification(db: Session, *, user_id: int, notification_id: int) -> bool:
+    notification = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.user_id == user_id)
+        .first()
+    )
+    if not notification:
+        return False
+
+    db.delete(notification)
+    db.commit()
+    return True

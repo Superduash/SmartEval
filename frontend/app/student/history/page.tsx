@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Calendar, ArrowRight, Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ApiError, getStudentNotifications } from "@/lib/api";
 import { EmptyState, ErrorAlert, LoaderSpinner } from "@/components/ui";
@@ -14,6 +15,7 @@ type TimelineItem = {
 };
 
 export default function StudentHistoryPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -30,7 +32,7 @@ export default function StudentHistoryPage() {
         if (!isMounted) return;
 
         const mapped: TimelineItem[] = payload.notifications.map((item, index) => ({
-          id: index + 1,
+          id: item.id || index + 1,
           title: item.title,
           date: new Date().toLocaleDateString(),
           type: item.title.toLowerCase().includes("result") ? "grade" : "system",
@@ -89,7 +91,11 @@ export default function StudentHistoryPage() {
                         </div>
                       </div>
                       {item.type === "grade" && (
-                        <button className="mt-2 flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-500 sm:mt-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push("/student/results")}
+                          className="mt-2 flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-500 sm:mt-0"
+                        >
                           View Details <ArrowRight className="h-3.5 w-3.5" />
                         </button>
                       )}

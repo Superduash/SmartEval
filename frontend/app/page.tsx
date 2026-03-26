@@ -45,6 +45,12 @@ export default function Home() {
             <span className="font-bold tracking-tight text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-cyan-400 transition-colors">SmartEval</span>
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/pricing"
+              className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              Pricing
+            </Link>
             <Link 
               href="/auth/login" 
               className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
@@ -91,11 +97,11 @@ export default function Home() {
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link 
-                href="#demo" 
+                href="/pricing" 
                 className="group flex h-14 items-center gap-2 rounded-full bg-white px-8 text-lg font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200/50 backdrop-blur-sm transition-all hover:bg-slate-50 hover:scale-105 active:scale-95 dark:bg-slate-900/50 dark:text-slate-200 dark:ring-slate-800 dark:hover:bg-slate-800/80"
               >
                 <PlayCircle className="h-5 w-5 text-brand-500 transition-colors group-hover:text-brand-600" />
-                View demo
+                Pricing
               </Link>
             </motion.div>
           </motion.div>

@@ -1,6 +1,7 @@
 from io import BytesIO
 import logging
-from typing import cast
+from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -16,10 +17,12 @@ from app.models.result import Result
 from app.models.upload import Upload, UploadType
 from app.models.user import User
 from app.schemas.analytics import TeacherAnalyticsResponse
+from app.schemas.class_link import StudentLinkResponse, StudentLinksResponse
 from app.schemas.exam import ExamCreateRequest, ExamResponse
 from app.schemas.result import EvaluateRequest, ResultResponse
 from app.schemas.upload import UploadResponse
 from app.services.analytics_service import get_teacher_analytics
+from app.services.class_link_service import list_teacher_student_links
 from app.services.exam_service import create_exam, list_exams_by_teacher
 from app.services.upload_service import create_upload
 
@@ -81,9 +84,58 @@ def list_results(db: Session = Depends(get_db), teacher: User = Depends(require_
     return db.query(Result).order_by(Result.id.desc()).all()
 
 
+@router.get("/students", response_model=StudentLinksResponse)
+def teacher_students(db: Session = Depends(get_db), teacher: User = Depends(require_teacher)):
+    rows = list_teacher_student_links(db, teacher_id=cast(int, teacher.id))
+    students = [
+        # SQLAlchemy runtime values are datetime; explicit cast avoids static Column typing mismatch.
+        StudentLinkResponse(
+            student_id=cast(int, student.id),
+            student_name=str(student.name),
+            student_email=str(student.email),
+            joined_at=cast(datetime, cast(Any, link).joined_at),
+            status=str(link.status),
+        )
+        for link, student in rows
+    ]
+    return StudentLinksResponse(students=students)
+
+
 @router.get("/analytics/{exam_id}", response_model=TeacherAnalyticsResponse)
 def teacher_analytics(exam_id: int, db: Session = Depends(get_db), teacher: User = Depends(require_teacher)):
     return get_teacher_analytics(db, exam_id)
+
+
+@router.get("/analytics/{exam_id}/export")
+def export_teacher_analytics(exam_id: int, db: Session = Depends(get_db), teacher: User = Depends(require_teacher)):
+    analytics = get_teacher_analytics(db, exam_id)
+    rows = [
+        "metric,value",
+        f"exam_id,{exam_id}",
+        f"average_marks,{analytics['average_marks']}",
+        f"highest_mark,{analytics['highest_mark']}",
+        f"pass_percentage,{analytics['pass_percentage']}",
+    ]
+    payload = "\n".join(rows)
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=teacher_analytics_exam_{exam_id}.csv"},
+    )
+
+
+@router.get("/results/export")
+def export_teacher_results(db: Session = Depends(get_db), teacher: User = Depends(require_teacher)):
+    rows = db.query(Result).order_by(Result.id.desc()).all()
+    csv_rows = ["result_id,student_id,exam_id,marks"]
+    for row in rows:
+        csv_rows.append(f"{row.id},{row.student_id},{row.exam_id},{row.marks}")
+
+    return StreamingResponse(
+        iter(["\n".join(csv_rows)]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=teacher_results.csv"},
+    )
 
 
 @router.get("/report/{exam_id}")

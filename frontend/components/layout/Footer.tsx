@@ -6,16 +6,16 @@ export function Footer() {
     <footer className="mt-auto border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div className="mx-auto max-w-7xl px-6 py-12 md:flex md:items-center md:justify-between lg:px-8">
         <div className="flex justify-center space-x-6 md:order-2">
-          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
-            <span className="sr-only">Twitter</span>
+          <Link href="/pricing" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">Pricing</span>
             <MessageCircle className="h-5 w-5" aria-hidden="true" />
           </Link>
-          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
-            <span className="sr-only">GitHub</span>
+          <Link href="/auth/login" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">Login</span>
             <Code2 className="h-5 w-5" aria-hidden="true" />
           </Link>
-          <Link href="#" className="text-slate-400 hover:text-slate-500 transition-colors">
-            <span className="sr-only">LinkedIn</span>
+          <Link href="/auth/register" className="text-slate-400 hover:text-slate-500 transition-colors">
+            <span className="sr-only">Register</span>
             <Briefcase className="h-5 w-5" aria-hidden="true" />
           </Link>
         </div>

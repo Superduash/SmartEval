@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     tesseract_cmd: str = "/usr/bin/tesseract"
     passing_mark: int = 40
 
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@smarteval.local"
+    smtp_from_name: str = "SmartEval"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

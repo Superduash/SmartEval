@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, TrendingUp, AlertTriangle, Target } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ChartCard, EmptyState, ErrorAlert, StatCard, DashboardSkeleton } from "@/components/ui";
-import { ApiError, getStudentAnalytics, getStudentResults } from "@/lib/api";
+import { ApiError, exportStudentAnalytics, getStudentAnalytics, getStudentResults } from "@/lib/api";
 import { ChartPayload } from "@/types";
 
 function payloadToRows(payload?: ChartPayload): Array<{ name: string; value: number }> {
@@ -72,7 +72,11 @@ export default function StudentAnalyticsPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Performance Analytics</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">Deep dive into your progress and AI feedback.</p>
           </div>
-          <button className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-md active:scale-[0.99]">
+          <button
+            type="button"
+            onClick={() => void exportStudentAnalytics()}
+            className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-brand-500 hover:shadow-md active:scale-[0.99]"
+          >
             <Download className="h-4 w-4" /> Export Report
           </button>
         </div>

@@ -4,12 +4,18 @@ import {
   LoginResponse,
   MemoryInsights,
   NotificationItem,
+  ParentContact,
   ParentMessage,
   ResultItem,
+  StudentLink,
   StudentAnalytics,
+  TeacherLink,
   TeacherAnalytics,
+  TrainerSession,
   TrainerPlan,
+  UserProfile,
   UploadResponse,
+  WaitlistLead,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -261,6 +267,27 @@ export async function downloadReport(examId: number): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+async function downloadFromEndpoint(path: string, filename: string): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  const res = await fetch(`${API_V1}${path}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res));
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export async function me(): Promise<AuthUser> {
   return request<AuthUser>("/auth/me", { headers: authHeaders() });
 }
@@ -281,8 +308,162 @@ export async function getStudentTrainerPlan(): Promise<TrainerPlan> {
   return getTrainerPlan();
 }
 
+export async function getTrainerSessions(): Promise<{ sessions: TrainerSession[] }> {
+  return request<{ sessions: TrainerSession[] }>("/student/trainer-sessions", { headers: authHeaders() });
+}
+
+export async function createTrainerSession(payload: { plan_id: string; title: string }): Promise<TrainerSession> {
+  return request<TrainerSession>("/student/trainer-sessions", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateTrainerSession(sessionId: number, payload: { elapsed_seconds: number; is_running: boolean }): Promise<TrainerSession> {
+  return request<TrainerSession>(`/student/trainer-sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeTrainerSession(sessionId: number, elapsedSeconds: number): Promise<TrainerSession> {
+  return request<TrainerSession>(`/student/trainer-sessions/${sessionId}/complete`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ elapsed_seconds: elapsedSeconds, is_running: false }),
+  });
+}
+
+export async function getStudentTeachers(): Promise<{ teachers: TeacherLink[] }> {
+  return request<{ teachers: TeacherLink[] }>("/student/teachers", { headers: authHeaders() });
+}
+
+export async function joinTeacher(teacherId: number): Promise<void> {
+  await request<{ success: boolean; message: string }>(`/student/teachers/${teacherId}/join`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function unlinkTeacher(teacherId: number): Promise<void> {
+  await request<{ success: boolean; message: string }>(`/student/teachers/${teacherId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
+export async function getTeacherStudents(): Promise<{ students: StudentLink[] }> {
+  return request<{ students: StudentLink[] }>("/teacher/students", { headers: authHeaders() });
+}
+
 export async function getStudentNotifications(): Promise<{ notifications: NotificationItem[] }> {
   return getNotifications();
+}
+
+export async function markStudentNotification(notificationId: number, isRead: boolean): Promise<NotificationItem> {
+  const payload = await request<NotificationItem>(`/student/notifications/${notificationId}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ is_read: isRead }),
+  });
+  clearApiCache();
+  return payload;
+}
+
+export async function deleteStudentNotification(notificationId: number): Promise<void> {
+  await request<{ success: boolean; message: string }>(`/student/notifications/${notificationId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  clearApiCache();
+}
+
+export async function getParentContacts(): Promise<{ parents: ParentContact[] }> {
+  return request<{ parents: ParentContact[] }>("/student/parents", { headers: authHeaders() });
+}
+
+export async function addParentContact(payload: { name: string; email: string; relationship?: string }): Promise<ParentContact> {
+  return request<ParentContact>("/student/parents", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      relationship: payload.relationship || "Guardian",
+    }),
+  });
+}
+
+export async function removeParentContact(parentId: number): Promise<void> {
+  await request<{ success: boolean; message: string }>(`/student/parents/${parentId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
+export async function inviteParentByEmail(payload: { email: string; name?: string; relationship?: string }): Promise<void> {
+  await request<{ success: boolean; message: string }>("/student/parents/invite", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      email: payload.email,
+      name: payload.name || "Parent / Guardian",
+      relationship: payload.relationship || "Guardian",
+    }),
+  });
+}
+
+export async function sendParentProgressUpdate(parentId: number): Promise<void> {
+  await request<{ success: boolean; message: string }>(`/student/parents/${parentId}/send-update`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function getProfile(): Promise<UserProfile> {
+  return request<UserProfile>("/auth/profile", { headers: authHeaders() });
+}
+
+export async function updateProfile(payload: {
+  name?: string;
+  phone?: string;
+  avatar_url?: string;
+  timezone?: string;
+  bio?: string;
+}): Promise<UserProfile> {
+  const updated = await request<UserProfile>("/auth/profile", {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  clearApiCache();
+  return updated;
+}
+
+export async function joinPricingWaitlist(email: string): Promise<WaitlistLead> {
+  return request<WaitlistLead>("/auth/waitlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, source: "pricing" }),
+  });
+}
+
+export async function downloadStudentFeedback(examId: number): Promise<void> {
+  await downloadFromEndpoint(`/student/results/${examId}/download`, `exam_${examId}_feedback.txt`);
+}
+
+export async function exportStudentAnalytics(): Promise<void> {
+  await downloadFromEndpoint("/student/analytics/export", "student_analytics.csv");
+}
+
+export async function exportTeacherAnalytics(examId: number): Promise<void> {
+  await downloadFromEndpoint(`/teacher/analytics/${examId}/export`, `teacher_analytics_exam_${examId}.csv`);
+}
+
+export async function exportTeacherResults(): Promise<void> {
+  await downloadFromEndpoint("/teacher/results/export", "teacher_results.csv");
 }
 
 export async function uploadTeacherFile(payload: { examId?: number; type: string; file: File }): Promise<UploadResponse> {

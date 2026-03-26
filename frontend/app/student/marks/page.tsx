@@ -5,10 +5,11 @@ import { Download, CheckCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { LoaderSpinner, EmptyState, ErrorAlert } from "@/components/ui";
-import { ApiError, getStudentResults } from "@/lib/api";
+import { ApiError, downloadStudentFeedback, getStudentResults } from "@/lib/api";
 
 type StudentResult = {
   id: number;
+  exam_id: number;
   subject: string;
   title: string;
   score: number | null;
@@ -34,6 +35,7 @@ export default function StudentMarksPage() {
         setResults(
           rows.map((row) => ({
             id: row.id,
+            exam_id: row.exam_id,
             subject: `Exam ${row.exam_id}`,
             title: `Evaluation #${row.id}`,
             score: Number(row.marks),
@@ -114,7 +116,11 @@ export default function StudentMarksPage() {
                     </div>
                     
                     {result.status === "completed" && (
-                      <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20">
+                      <button
+                        type="button"
+                        onClick={() => void downloadStudentFeedback(result.exam_id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
+                      >
                         <Download className="h-4 w-4" />
                       </button>
                     )}
